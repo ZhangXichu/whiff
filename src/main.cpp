@@ -3,14 +3,16 @@
 #include <iomanip>
 #include <ctime>
 
-void packet_handler(u_char* /*user*/, const struct pcap_pkthdr* header, const u_char* /*packet*/) {
-    std::time_t ts = header->ts.tv_sec;
-    std::tm* tm_info = std::localtime(&ts);
-    char buf[26];
-    strftime(buf, 26, "%Y-%m-%d %H:%M:%S", tm_info);
+struct CaptureContext 
+{
+    pcap_dumper_t* dumper;
+};
 
-    std::cout << "[*] " << buf << "." << std::setfill('0') << std::setw(6) << header->ts.tv_usec
-              << " - Captured packet of length: " << header->len << " bytes\n";
+void packet_handler(u_char* user, const struct pcap_pkthdr* header, const u_char* packet) {
+   auto* ctx = reinterpret_cast<CaptureContext*>(user);
+
+    std::cout << "[*] Packet length: " << header->len << "\n";
+    pcap_dump((u_char*)ctx->dumper, header, packet);
 }
 
 int main(int argc, char* argv[])
@@ -21,20 +23,29 @@ int main(int argc, char* argv[])
     }
 
     const char* dev = argv[1];
+    const char* output_file = (argc >= 3) ? argv[2] : "handshakee.pcap";
 
     char errbuf[PCAP_ERRBUF_SIZE];
 
     pcap_t* handle = pcap_open_live(dev, BUFSIZ, 1, 1000, errbuf);
-
     if (!handle) {
         std::cerr << "[-] pcap_open_live failed: " << errbuf << "\n";
         return 1;
     }
 
-    std::cout << "[+] Sniffing on interface: " << dev << " (monitor mode)\n";
+    pcap_dumper_t* dumper = pcap_dump_open(handle, output_file);
+    if (!dumper) {
+        std::cerr << "[-] pcap_dump_open failed: " << pcap_geterr(handle) << "\n";
+        return 1;
+    }
 
-    pcap_loop(handle, 0, packet_handler, nullptr);
+    std::cout << "[+] Capturing packets on " << dev << ", saving to: " << output_file << "\n";
 
+
+    CaptureContext ctx{ dumper };
+    pcap_loop(handle, 0, packet_handler, reinterpret_cast<u_char*>(&ctx));
+
+    pcap_dump_close(dumper);
     pcap_close(handle);
 
     return 0;

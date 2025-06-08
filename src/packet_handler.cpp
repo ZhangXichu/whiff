@@ -2,7 +2,7 @@
 
 namespace whiff {
 
-PacketHandler::~PacketHandler()
+void PacketHandler::stop()
 {
     if (_dumper) {
         pcap_dump_close(_dumper);
@@ -12,6 +12,12 @@ PacketHandler::~PacketHandler()
         pcap_close(_handle);
         _handle = nullptr;
     }
+}
+
+PacketHandler::~PacketHandler()
+{
+    std::cout << "dtor called" << std::endl;
+    stop();
 }
 
 void PacketHandler::pcap_callback(u_char* user, const struct pcap_pkthdr* header, const u_char* packet) {

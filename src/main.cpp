@@ -3,6 +3,7 @@
 #include <iomanip>
 #include <ctime>
 #include "packet_handler.hpp"
+#include "signal_handler.hpp"
 
 
 int main(int argc, char* argv[])
@@ -17,7 +18,12 @@ int main(int argc, char* argv[])
 
     whiff::PacketHandler pkt_handler;
 
+    whiff::SignalHandler::set_callback([&]() { pkt_handler.stop(); });
+    whiff::SignalHandler::setup();
+
     pkt_handler.capture(dev, output_file);
+
+    std::cout << "[*] Finished capture.\n";
 
     return 0;
 }

@@ -11,7 +11,8 @@ link_directories(${PCAP_LIBRARY_DIRS})
 
 add_executable(whiff 
     src/main.cpp
-    src/packet_handler.cpp)
+    src/packet_handler.cpp
+    src/signal_handler.cpp)
 target_include_directories(
     whiff
     PRIVATE

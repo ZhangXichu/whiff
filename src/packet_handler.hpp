@@ -19,6 +19,7 @@ public:
 ~PacketHandler();
 
 void capture(const std::string& iface, const std::string& output_file);
+void stop();
 
 private:
 

@@ -9,5 +9,12 @@ pkg_check_modules(PCAP REQUIRED libpcap)
 include_directories(${PCAP_INCLUDE_DIRS})
 link_directories(${PCAP_LIBRARY_DIRS})
 
-add_executable(whiff src/main.cpp)
+add_executable(whiff 
+    src/main.cpp
+    src/packet_handler.cpp)
+target_include_directories(
+    whiff
+    PRIVATE
+    ${CMAKE_SOURCE_DIR}/src
+)
 target_link_libraries(whiff ${PCAP_LIBRARIES})

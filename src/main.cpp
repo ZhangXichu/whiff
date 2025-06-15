@@ -4,7 +4,6 @@
 #include <ctime>
 #include "packet_handler.hpp"
 #include "signal_handler.hpp"
-#include "pcap_reader.hpp"
 #include <handshake_extractor.hpp>
 
 
@@ -26,10 +25,6 @@ int main(int argc, char* argv[])
     // pkt_handler.capture(dev, output_file);
 
     // std::cout << "[*] Finished capture.\n";
-
-    // whiff::PcapReader pcap_reader("/home/xichuz/workspace/whiff/dump.pcap");
-
-    // pcap_reader.read_all();
 
     whiff::HandshakeExtractor extractor("/home/xichuz/workspace/whiff/dump.pcap");
     if (extractor.extract_handshake()) {

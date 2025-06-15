@@ -91,4 +91,109 @@ bool HandshakeExtractor::is_eapol_packet(const u_char* packet, uint32_t len) {
     return false;
 }
 
+Eapol HandshakeExtractor::parse_packet(const EapolPacket& pkt)
+{
+    Eapol result;
+    result.timestamp = pkt.timestamp;
+    result.raw_frame = pkt.raw_data;
+
+    const uint8_t* packet = pkt.raw_data.data();
+    const uint32_t len = pkt.raw_data.size();
+
+    if (len < 36) {
+        std::cerr << "[-] Packet too short\n";
+        return result;
+    }
+
+    // Radiotap header length
+    uint16_t radiotap_len = packet[2] | (packet[3] << 8);
+    if (radiotap_len >= len) {
+        std::cerr << "[-] Radiotap length exceeds packet length\n";
+        return result;
+    }
+
+    const uint8_t* payload = packet + radiotap_len;
+    uint16_t fc = payload[0] | (payload[1] << 8);
+    uint8_t subtype = (fc >> 4) & 0xf;
+    bool has_addr4 = (fc & 0x0300) == 0x0300;
+    size_t hdr_len = 24 + (has_addr4 ? 6 : 0);
+    if (subtype & 0x08) hdr_len += 2;  // QoS
+
+    if (radiotap_len + hdr_len + 8 > len) {
+        std::cerr << "[-] Not enough space for LLC/SNAP\n";
+        return result;
+    }
+
+    std::memcpy(result.dst_mac.data(), payload + 4, 6);
+    std::memcpy(result.src_mac.data(), payload + 10, 6);
+
+    const uint8_t* llc = payload + hdr_len;
+    if (llc + 8 > packet + len || llc[0] != 0xAA || llc[1] != 0xAA || llc[2] != 0x03) {
+        std::cerr << "[-] LLC/SNAP header missing or malformed\n";
+        return result;
+    }
+
+    uint16_t ethertype = (llc[6] << 8) | llc[7];
+    if (ethertype != 0x888E) {
+        std::cerr << "[-] Not an EAPOL packet\n";
+        return result;
+    }
+
+    const uint8_t* eapol = llc + 8;
+    if (eapol + 4 > packet + len) {
+        std::cerr << "[-] Truncated EAPOL header\n";
+        return result;
+    }
+
+    uint8_t version = eapol[0];
+    uint8_t type = eapol[1];
+    uint16_t body_len = (eapol[2] << 8) | eapol[3];
+
+    if (type != 3) {  // Only parse EAPOL-Key
+        std::cerr << "[-] Not an EAPOL-Key packet (type=" << (int)type << ")\n";
+        return result;
+    }
+
+    const uint8_t* eapol_key = eapol + 4;
+    size_t remaining = packet + len - eapol_key;
+
+    if (remaining < 96) {
+        std::cerr << "[-] Truncated EAPOL-Key body\n";
+        return result;
+    }
+
+    auto& desc = result.key_descriptor;
+    desc.descriptor_type = eapol_key[0];
+    desc.key_info = (eapol_key[1] << 8) | eapol_key[2];
+    desc.key_length = (eapol_key[3] << 8) | eapol_key[4];
+
+    std::memcpy(desc.replay_counter.data(), eapol_key + 5, 8);
+    std::memcpy(desc.nonce.data(),         eapol_key + 13, 32);
+    std::memcpy(desc.key_iv.data(),        eapol_key + 45, 16);
+    std::memcpy(desc.key_rsc.data(),       eapol_key + 61, 8);
+    std::memcpy(desc.mic.data(),           eapol_key + 77, 16);
+
+    desc.key_data_length = (eapol_key[93] << 8) | eapol_key[94];
+
+    const uint8_t* key_data_start = eapol_key + 95;
+    if (key_data_start + desc.key_data_length <= packet + len) {
+        desc.key_data.assign(key_data_start, key_data_start + desc.key_data_length);
+    } else {
+        std::cerr << "[-] Invalid Key Data length: exceeds packet bounds ("
+                  << desc.key_data_length << " vs " << (packet + len - key_data_start) << ")\n";
+        desc.key_data.clear();
+    }
+
+    result.has_mic = ((desc.key_info >> 8) & 0x01);
+    result.is_from_ap = (payload[1] & 0x01) == 0;
+
+    std::cout << "[*] Descriptor Type: " << std::dec << (int)desc.descriptor_type << "\n";
+    std::cout << "[*] Key Info: 0x" << std::hex << desc.key_info << "\n";
+    std::cout << "[*] Key Length: " << std::dec << desc.key_length << "\n";
+    std::cout << "[*] Key Data Length: " << desc.key_data_length << "\n";
+    std::cout << "[*] Has MIC: " << std::boolalpha << result.has_mic << "\n";
+    std::cout << "[*] Is From AP: " << result.is_from_ap << "\n";
+
+    return result;
+}
 }

@@ -251,12 +251,12 @@ std::optional<HandshakeData> HandshakeExtractor::prepare_handshake_info() {
         result.eapol_frame = h2.raw_frame;
 
         std::cout << "        [+] Extracted handshake fields:\n";
-        std::cout << "            - AP MAC:      " << to_hex(result.ap_mac.data(), 6) << "\n";
-        std::cout << "            - Client MAC:  " << to_hex(result.client_mac.data(), 6) << "\n";
-        std::cout << "            - ANonce:      " << to_hex(result.anonce.data(), 32) << "\n";
-        std::cout << "            - SNonce:      " << to_hex(result.snonce.data(), 32) << "\n";
-        std::cout << "            - MIC:         " << to_hex(result.mic.data(), 16) << "\n";
-        std::cout << "            - EAPOL frame: " << to_hex(result.eapol_frame.data(), std::min<size_t>(result.eapol_frame.size(), 64)) << "...\n";
+        std::cout << "            - AP MAC:      " << utils::to_hex(result.ap_mac.data(), 6) << "\n";
+        std::cout << "            - Client MAC:  " << utils::to_hex(result.client_mac.data(), 6) << "\n";
+        std::cout << "            - ANonce:      " << utils::to_hex(result.anonce.data(), 32) << "\n";
+        std::cout << "            - SNonce:      " << utils::to_hex(result.snonce.data(), 32) << "\n";
+        std::cout << "            - MIC:         " << utils::to_hex(result.mic.data(), 16) << "\n";
+        std::cout << "            - EAPOL frame: " << utils::to_hex(result.eapol_frame.data(), std::min<size_t>(result.eapol_frame.size(), 64)) << "...\n";
 
         // TODO: if SSID is not in EAPOL frames, set manually
         // result.ssid = input_ssid;
@@ -270,13 +270,4 @@ std::optional<HandshakeData> HandshakeExtractor::prepare_handshake_info() {
 
     return std::nullopt;
 }
-
-std::string HandshakeExtractor::to_hex(const uint8_t* data, size_t len) {
-    std::ostringstream oss;
-    for (size_t i = 0; i < len; ++i)
-        oss << std::hex << std::setfill('0') << std::setw(2) << (int)data[i];
-    return oss.str();
-}
-
-
 }

@@ -4,6 +4,7 @@
 #include <string>
 #include <optional>
 #include <packet_data.hpp>
+#include <utils.hpp>
 
 namespace whiff {
 
@@ -25,8 +26,7 @@ private:
     std::vector<EapolPacket> _eapol_packets;
 
     static bool is_eapol_packet(const u_char* packet, uint32_t len);
-    std::string to_hex(const uint8_t* data, size_t len);
-
+    
 };
 
 

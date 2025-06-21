@@ -13,7 +13,8 @@ add_executable(whiff
     src/main.cpp
     src/packet_handler.cpp
     src/signal_handler.cpp
-    src/handshake_extractor.cpp)
+    src/handshake_extractor.cpp
+    src/utils.cpp)
 target_include_directories(
     whiff
     PRIVATE

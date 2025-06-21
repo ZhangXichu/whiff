@@ -2,6 +2,8 @@
 
 #include <iostream>
 #include <cstring>
+#include <sstream>
+#include  <iomanip>
 
 namespace whiff {
 
@@ -196,4 +198,85 @@ Eapol HandshakeExtractor::parse_packet(const EapolPacket& pkt)
 
     return result;
 }
+
+
+std::optional<HandshakeData> HandshakeExtractor::prepare_handshake_info() {
+    for (size_t i = 0; i + 1 < _eapol_packets.size(); ++i) {
+        const auto& pkt1 = _eapol_packets[i];
+        const auto& pkt2 = _eapol_packets[i + 1];
+
+        Eapol h1 = parse_packet(pkt1);
+        Eapol h2 = parse_packet(pkt2);
+
+        std::cout << "        - h1: from_ap=" << std::boolalpha << h1.is_from_ap
+                  << ", has_mic=" << h1.has_mic << "\n";
+        std::cout << "        - h2: from_ap=" << std::boolalpha << h2.is_from_ap
+                  << ", has_mic=" << h2.has_mic << "\n";
+
+        if (!h1.is_from_ap || h2.is_from_ap) {
+            std::cout << "        [-] Invalid direction (expect AP→Client then Client→AP)\n";
+            continue;
+        }
+
+        // Match AP -> Client (msg1) then Client -> AP (msg2)
+        if (!h1.is_from_ap || h2.is_from_ap)
+            continue;
+
+        // Both must have key descriptor
+        const auto& d1 = h1.key_descriptor;
+        const auto& d2 = h2.key_descriptor;
+
+        if (!h2.has_mic) {
+            std::cout << "        [-] h2 is missing MIC\n";
+            continue;
+        }
+
+        if (d1.replay_counter != d2.replay_counter) {
+            std::cout << "        [-] Replay counters do not match\n";
+            continue;
+        }
+
+        std::cout << "        [+] Valid pair found!\n";
+
+        // Check for valid MIC + matching replay counter
+        if (!h2.has_mic) continue;
+        if (d1.replay_counter != d2.replay_counter) continue;
+
+        HandshakeData result;
+        result.ap_mac = h1.src_mac;
+        result.client_mac = h2.src_mac;
+        result.anonce = d1.nonce;
+        result.snonce = d2.nonce;
+        result.mic = d2.mic;
+        result.eapol_frame = h2.raw_frame;
+
+        std::cout << "        [+] Extracted handshake fields:\n";
+        std::cout << "            - AP MAC:      " << to_hex(result.ap_mac.data(), 6) << "\n";
+        std::cout << "            - Client MAC:  " << to_hex(result.client_mac.data(), 6) << "\n";
+        std::cout << "            - ANonce:      " << to_hex(result.anonce.data(), 32) << "\n";
+        std::cout << "            - SNonce:      " << to_hex(result.snonce.data(), 32) << "\n";
+        std::cout << "            - MIC:         " << to_hex(result.mic.data(), 16) << "\n";
+        std::cout << "            - EAPOL frame: " << to_hex(result.eapol_frame.data(), std::min<size_t>(result.eapol_frame.size(), 64)) << "...\n";
+
+        // TODO: if SSID is not in EAPOL frames, set manually
+        // result.ssid = input_ssid;
+
+        std::cout << "        [+] Handshake info prepared.\n";
+
+        return result;
+    }
+
+    std::cout << "[-] No valid handshake info found.\n";
+
+    return std::nullopt;
+}
+
+std::string HandshakeExtractor::to_hex(const uint8_t* data, size_t len) {
+    std::ostringstream oss;
+    for (size_t i = 0; i < len; ++i)
+        oss << std::hex << std::setfill('0') << std::setw(2) << (int)data[i];
+    return oss.str();
+}
+
+
 }

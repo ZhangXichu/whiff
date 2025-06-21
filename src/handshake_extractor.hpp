@@ -5,6 +5,7 @@
 #include <cstdint>
 #include <string>
 #include <array>
+#include <optional>
 
 namespace whiff {
 
@@ -40,6 +41,16 @@ struct Eapol {
 };
 
 
+struct HandshakeData {
+    std::array<uint8_t, 6> ap_mac;
+    std::array<uint8_t, 6> client_mac;
+    std::array<uint8_t, 32> anonce;
+    std::array<uint8_t, 32> snonce;
+    std::array<uint8_t, 16> mic;
+    std::vector<uint8_t> eapol_frame;
+    std::string ssid;
+};
+
 class HandshakeExtractor {
 
 public:
@@ -49,12 +60,14 @@ public:
     bool extract_handshake();
     const std::vector<EapolPacket>& get_eapol_packets() const;
     Eapol parse_packet(const EapolPacket& pkt);
+    std::optional<HandshakeData> prepare_handshake_info();
 
 private:
     std::string _pcap_file;
     std::vector<EapolPacket> _eapol_packets;
 
     static bool is_eapol_packet(const u_char* packet, uint32_t len);
+    std::string to_hex(const uint8_t* data, size_t len);
 
 };
 

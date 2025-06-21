@@ -31,7 +31,14 @@ int main(int argc, char* argv[])
         std::cout << "[*] EAPOL handshake(s) found: " << extractor.get_eapol_packets().size() << "\n";
     } else {
         std::cout << "[-] No EAPOL packets found.\n";
+        return 0;
     }
+
+    for (const auto& pkt : extractor.get_eapol_packets()) {
+        extractor.parse_packet(pkt);
+    }
+
+    extractor.prepare_handshake_info();
 
     return 0;
 }

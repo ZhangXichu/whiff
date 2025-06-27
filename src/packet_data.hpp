@@ -32,6 +32,7 @@ struct KeyDescriptor {
 struct Eapol {
     timeval timestamp;
     std::vector<uint8_t> raw_frame;
+    std::vector<uint8_t> eapol_payload;
     std::array<uint8_t, 6> src_mac{};  // Source MAC address
     std::array<uint8_t, 6> dst_mac{};  // Destination MAC address
     bool has_mic = false;

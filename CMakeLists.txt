@@ -14,7 +14,8 @@ add_executable(whiff
     src/packet_handler.cpp
     src/signal_handler.cpp
     src/handshake_extractor.cpp
-    src/utils.cpp)
+    src/utils.cpp
+    src/hc22000_exporter.cpp)
 target_include_directories(
     whiff
     PRIVATE

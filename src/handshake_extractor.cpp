@@ -156,6 +156,16 @@ Eapol HandshakeExtractor::parse_packet(const EapolPacket& pkt)
         return result;
     }
 
+    size_t eapol_total_len = 4 + body_len;
+    const uint8_t* eapol_start = eapol;
+
+    if (eapol_start + eapol_total_len > packet + len) {
+        std::cerr << "[-] EAPOL payload length exceeds packet size\n";
+        return result;
+    }
+
+    result.eapol_payload.assign(eapol_start, eapol_start + eapol_total_len);
+
     const uint8_t* eapol_key = eapol + 4;
     size_t remaining = packet + len - eapol_key;
 
@@ -195,6 +205,8 @@ Eapol HandshakeExtractor::parse_packet(const EapolPacket& pkt)
     std::cout << "[*] Key Data Length: " << desc.key_data_length << "\n";
     std::cout << "[*] Has MIC: " << std::boolalpha << result.has_mic << "\n";
     std::cout << "[*] Is From AP: " << result.is_from_ap << "\n";
+    std::cout << "[*] EAPOL Payload (len=" << result.eapol_payload.size() << "): "
+          << utils::to_hex(result.eapol_payload.data(), std::min<size_t>(result.eapol_payload.size(), 64)) << "...\n";
 
     return result;
 }
@@ -248,7 +260,7 @@ std::optional<HandshakeData> HandshakeExtractor::prepare_handshake_info() {
         result.anonce = d1.nonce;
         result.snonce = d2.nonce;
         result.mic = d2.mic;
-        result.eapol_frame = h2.raw_frame;
+        result.eapol_frame = h2.eapol_payload;
 
         std::cout << "        [+] Extracted handshake fields:\n";
         std::cout << "            - AP MAC:      " << utils::to_hex(result.ap_mac.data(), 6) << "\n";

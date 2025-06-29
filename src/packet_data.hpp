@@ -33,8 +33,10 @@ struct Eapol {
     timeval timestamp;
     std::vector<uint8_t> raw_frame;
     std::vector<uint8_t> eapol_payload;
+    std::vector<uint8_t> eapol_payload_zeroed;
     std::array<uint8_t, 6> src_mac{};  // Source MAC address
     std::array<uint8_t, 6> dst_mac{};  // Destination MAC address
+    std::array<uint8_t, 6> bssid{};
     bool has_mic = false;
     bool is_from_ap = false;
     KeyDescriptor key_descriptor;

@@ -126,8 +126,40 @@ Eapol HandshakeExtractor::parse_packet(const EapolPacket& pkt)
         return result;
     }
 
-    std::memcpy(result.dst_mac.data(), payload + 4, 6);
-    std::memcpy(result.src_mac.data(), payload + 10, 6);
+    bool to_ds   = fc & 0x0100;
+    bool from_ds = fc & 0x0200;
+
+    // Pointer positions
+    const uint8_t* addr1 = payload + 4;
+    const uint8_t* addr2 = payload + 10;
+    const uint8_t* addr3 = payload + 16;
+
+    if (!to_ds && !from_ds) {
+        // Ad-hoc or STA↔STA in infrastructure
+        std::cout << "Ad-hoc or STA <-> STA in infrastructure" << std::endl;
+        result.dst_mac = utils::mac_from_bytes(addr1);  // Destination
+        result.src_mac = utils::mac_from_bytes(addr2);  // Source STA
+        result.bssid   = utils::mac_from_bytes(addr3);  // BSSID
+        std::cout << "[*] BSSID: " << utils::mac_to_string(result.bssid) << "\n";
+    } else if (to_ds && !from_ds) {
+        // STA → AP
+        std::cout << "STA <-> AP" << std::endl;
+        result.bssid   = utils::mac_from_bytes(addr1);  // BSSID (AP)
+        result.src_mac = utils::mac_from_bytes(addr2);  // Source STA
+        result.dst_mac = utils::mac_from_bytes(addr3);  // Destination
+        std::cout << "[*] BSSID: " << utils::mac_to_string(result.bssid) << "\n";
+    } else if (!to_ds && from_ds) {
+        // AP → STA
+        std::cout << "AP <-> STA" << std::endl;
+        result.dst_mac = utils::mac_from_bytes(addr1);  // Destination STA
+        result.bssid   = utils::mac_from_bytes(addr2);  // BSSID (AP)
+        result.src_mac = utils::mac_from_bytes(addr3);  // Source STA
+        std::cout << "[*] BSSID: " << utils::mac_to_string(result.bssid) << "\n";
+    } else if (to_ds && from_ds) {
+        // WDS or mesh network — we do not support
+        std::cerr << "[-] Unsupported 4-address WDS frame\n";
+        return result;
+    }
 
     const uint8_t* llc = payload + hdr_len;
     if (llc + 8 > packet + len || llc[0] != 0xAA || llc[1] != 0xAA || llc[2] != 0x03) {
@@ -165,6 +197,14 @@ Eapol HandshakeExtractor::parse_packet(const EapolPacket& pkt)
     }
 
     result.eapol_payload.assign(eapol_start, eapol_start + eapol_total_len);
+
+    result.eapol_payload_zeroed = result.eapol_payload;
+    if (result.eapol_payload_zeroed.size() >= 97) {
+        std::fill(result.eapol_payload_zeroed.begin() + 81,
+                result.eapol_payload_zeroed.begin() + 97, 0x00);
+    } else {
+        std::cerr << "[-] EAPOL payload too short to zero MIC\n";
+    }
 
     const uint8_t* eapol_key = eapol + 4;
     size_t remaining = packet + len - eapol_key;
@@ -207,6 +247,10 @@ Eapol HandshakeExtractor::parse_packet(const EapolPacket& pkt)
     std::cout << "[*] Is From AP: " << result.is_from_ap << "\n";
     std::cout << "[*] EAPOL Payload (len=" << result.eapol_payload.size() << "): "
           << utils::to_hex(result.eapol_payload.data(), std::min<size_t>(result.eapol_payload.size(), 64)) << "...\n";
+    std::cout << "[*] EAPOL (zeroed MIC): "
+          << utils::to_hex(result.eapol_payload_zeroed.data(),
+                           std::min<size_t>(result.eapol_payload_zeroed.size(), 64))
+          << "...\n";
 
     return result;
 }
@@ -260,7 +304,7 @@ std::optional<HandshakeData> HandshakeExtractor::prepare_handshake_info() {
         result.anonce = d1.nonce;
         result.snonce = d2.nonce;
         result.mic = d2.mic;
-        result.eapol_frame = h2.eapol_payload;
+        result.eapol_frame = h2.eapol_payload_zeroed;
 
         std::cout << "        [+] Extracted handshake fields:\n";
         std::cout << "            - AP MAC:      " << utils::to_hex(result.ap_mac.data(), 6) << "\n";

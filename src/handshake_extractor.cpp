@@ -4,6 +4,7 @@
 #include <cstring>
 #include <sstream>
 #include  <iomanip>
+#include <algorithm>
 
 namespace whiff {
 
@@ -245,6 +246,10 @@ Eapol HandshakeExtractor::parse_packet(const EapolPacket& pkt)
     std::cout << "[*] Key Data Length: " << desc.key_data_length << "\n";
     std::cout << "[*] Has MIC: " << std::boolalpha << result.has_mic << "\n";
     std::cout << "[*] Is From AP: " << result.is_from_ap << "\n";
+    std::cout << "[*] Replay Counter: "
+          << utils::to_hex(desc.replay_counter.data(), desc.replay_counter.size()) << "\n";
+    std::cout << "[*] Nonce: "
+          << utils::to_hex(desc.nonce.data(), desc.nonce.size()) << "\n";
     std::cout << "[*] EAPOL Payload (len=" << result.eapol_payload.size() << "): "
           << utils::to_hex(result.eapol_payload.data(), std::min<size_t>(result.eapol_payload.size(), 64)) << "...\n";
     std::cout << "[*] EAPOL (zeroed MIC): "
@@ -257,6 +262,23 @@ Eapol HandshakeExtractor::parse_packet(const EapolPacket& pkt)
 
 
 std::optional<HandshakeData> HandshakeExtractor::prepare_handshake_info() {
+
+    auto is_zero_nonce = [](const std::array<uint8_t, 32>& nonce) {
+        return std::all_of(nonce.begin(), nonce.end(), [](uint8_t b) { return b == 0; });
+    };
+
+    auto print_handshake = [](const HandshakeData& hs) {
+        std::cout << "        [+] Extracted handshake fields:\n";
+        std::cout << "            - AP MAC:      " << utils::to_hex(hs.ap_mac.data(), 6) << "\n";
+        std::cout << "            - Client MAC:  " << utils::to_hex(hs.client_mac.data(), 6) << "\n";
+        std::cout << "            - ANonce:      " << utils::to_hex(hs.anonce.data(), 32) << "\n";
+        std::cout << "            - SNonce:      " << utils::to_hex(hs.snonce.data(), 32) << "\n";
+        std::cout << "            - MIC:         " << utils::to_hex(hs.mic.data(), 16) << "\n";
+        std::cout << "            - EAPOL frame: " << utils::to_hex(hs.eapol_frame.data(), std::min<size_t>(hs.eapol_frame.size(), 64)) << "...\n";
+    };
+
+    std::optional<HandshakeData> best_handshake;
+
     for (size_t i = 0; i + 1 < _eapol_packets.size(); ++i) {
         const auto& pkt1 = _eapol_packets[i];
         const auto& pkt2 = _eapol_packets[i + 1];
@@ -269,61 +291,68 @@ std::optional<HandshakeData> HandshakeExtractor::prepare_handshake_info() {
         std::cout << "        - h2: from_ap=" << std::boolalpha << h2.is_from_ap
                   << ", has_mic=" << h2.has_mic << "\n";
 
-        if (!h1.is_from_ap || h2.is_from_ap) {
-            std::cout << "        [-] Invalid direction (expect AP→Client then Client→AP)\n";
-            continue;
-        }
-
-        // Match AP -> Client (msg1) then Client -> AP (msg2)
-        if (!h1.is_from_ap || h2.is_from_ap)
-            continue;
-
         // Both must have key descriptor
         const auto& d1 = h1.key_descriptor;
         const auto& d2 = h2.key_descriptor;
 
-        if (!h2.has_mic) {
-            std::cout << "        [-] h2 is missing MIC\n";
-            continue;
+        // --- Try M2 + M3 (preferred)
+        if (!h1.is_from_ap && h2.is_from_ap &&  // TODO: need to capture more packets and test it
+            h1.has_mic &&
+            d1.replay_counter == d2.replay_counter &&
+            !is_zero_nonce(d1.nonce)) 
+        {
+
+            std::cout << "        [+] Valid M2 + M3 handshake found\n";
+
+            HandshakeData hs;
+            hs.ap_mac = h2.src_mac;
+            hs.client_mac = h1.src_mac;
+            hs.anonce = d2.nonce;
+            hs.snonce = d1.nonce;
+            hs.mic = d1.mic;
+            hs.eapol_frame = h1.eapol_payload_zeroed;
+            hs.message_pair = 0x02; // M2 + M3
+
+            best_handshake = hs;  // prefer and continue
+            break;
         }
 
-        if (d1.replay_counter != d2.replay_counter) {
-            std::cout << "        [-] Replay counters do not match\n";
-            continue;
+        // --- Try M1 + M2 (fallback)
+        if (h1.is_from_ap && !h2.is_from_ap &&
+            h2.has_mic &&
+            d1.replay_counter == d2.replay_counter &&
+            !is_zero_nonce(d2.nonce)) {
+
+            // Only use if no better handshake found yet
+            if (!best_handshake.has_value()) 
+            {
+                std::cout << "        [+] Valid M1 + M2 handshake found\n";
+
+                HandshakeData hs;
+                hs.ap_mac = h1.src_mac;
+                hs.client_mac = h2.src_mac;
+                hs.anonce = d1.nonce;
+                hs.snonce = d2.nonce;
+                hs.mic = d2.mic;
+                hs.eapol_frame = h2.eapol_payload_zeroed;
+                hs.message_pair = 0x00; // M1 + M2
+
+                best_handshake = hs;
+            }
         }
-
-        std::cout << "        [+] Valid pair found!\n";
-
-        // Check for valid MIC + matching replay counter
-        if (!h2.has_mic) continue;
-        if (d1.replay_counter != d2.replay_counter) continue;
-
-        HandshakeData result;
-        result.ap_mac = h1.src_mac;
-        result.client_mac = h2.src_mac;
-        result.anonce = d1.nonce;
-        result.snonce = d2.nonce;
-        result.mic = d2.mic;
-        result.eapol_frame = h2.eapol_payload_zeroed;
-
-        std::cout << "        [+] Extracted handshake fields:\n";
-        std::cout << "            - AP MAC:      " << utils::to_hex(result.ap_mac.data(), 6) << "\n";
-        std::cout << "            - Client MAC:  " << utils::to_hex(result.client_mac.data(), 6) << "\n";
-        std::cout << "            - ANonce:      " << utils::to_hex(result.anonce.data(), 32) << "\n";
-        std::cout << "            - SNonce:      " << utils::to_hex(result.snonce.data(), 32) << "\n";
-        std::cout << "            - MIC:         " << utils::to_hex(result.mic.data(), 16) << "\n";
-        std::cout << "            - EAPOL frame: " << utils::to_hex(result.eapol_frame.data(), std::min<size_t>(result.eapol_frame.size(), 64)) << "...\n";
-
-        // TODO: if SSID is not in EAPOL frames, set manually
-        // result.ssid = input_ssid;
-
-        std::cout << "        [+] Handshake info prepared.\n";
-
-        return result;
     }
 
-    std::cout << "[-] No valid handshake info found.\n";
+    if (best_handshake.has_value()) {
+        std::cout << "        [+] Handshake info prepared (message_pair = 0x"
+                  << std::hex << static_cast<int>(best_handshake->message_pair) << ")\n";
 
-    return std::nullopt;
+        print_handshake(*best_handshake);
+    } else {
+        std::cout << "[-] No valid handshake info found.\n";
+    }
+
+
+    return best_handshake;
 }
+
 }

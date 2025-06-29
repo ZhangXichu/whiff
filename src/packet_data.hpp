@@ -50,6 +50,7 @@ struct HandshakeData {
     std::array<uint8_t, 32> snonce;
     std::array<uint8_t, 16> mic;
     std::vector<uint8_t> eapol_frame;
+    uint8_t message_pair = 0x00;
     std::string ssid;
 };
 

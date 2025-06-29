@@ -2,9 +2,10 @@
 #include <iostream>
 #include <iomanip>
 #include <ctime>
-#include "packet_handler.hpp"
-#include "signal_handler.hpp"
+#include <packet_handler.hpp>
+#include <signal_handler.hpp>
 #include <handshake_extractor.hpp>
+#include <hc22000_exporter.hpp>
 
 
 int main(int argc, char* argv[])
@@ -38,7 +39,15 @@ int main(int argc, char* argv[])
         extractor.parse_packet(pkt);
     }
 
-    extractor.prepare_handshake_info();
+    auto data = extractor.prepare_handshake_info();
+
+    whiff::Hc22000Exporter hc_exporter;
+
+    std::string ssid = "realme 8";
+    std::string filepath = "/home/xichuz/workspace/whiff/out";
+    if (data.has_value()) {
+        whiff::Hc22000Exporter::export_to_file(data.value(), ssid, filepath);
+    }
 
     return 0;
 }

@@ -4,15 +4,11 @@
 
 namespace whiff {
 
-class HandshakeMonitor {
-
+class PacketFilter {
 
 public:
 
-bool is_eapol_packet(const u_char* packet, uint32_t len);
-
-
-private:
+virtual bool match(const u_char* packet, uint32_t len) const = 0;
 
 
 };

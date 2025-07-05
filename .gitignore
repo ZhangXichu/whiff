@@ -1,3 +1,7 @@
 build/*
 notes.txt
-dump.pcap
+packets/*
+out
+*.hc22000
+test.py
+wordlist.txt

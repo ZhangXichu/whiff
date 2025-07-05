@@ -5,15 +5,14 @@
 #include <optional>
 #include <packet_data.hpp>
 #include <utils.hpp>
+#include <packet_filter.hpp>
 
 namespace whiff {
-
-
 
 class HandshakeExtractor {
 
 public:
-    explicit HandshakeExtractor(const std::string& pcap_file);
+    HandshakeExtractor(const std::string& pcap_file, PacketFilter* filter);
     ~HandshakeExtractor();
 
     bool extract_handshake();
@@ -23,10 +22,8 @@ public:
 
 private:
     std::string _pcap_file;
+    PacketFilter* _filter;
     std::vector<EapolPacket> _eapol_packets;
-
-    static bool is_eapol_packet(const u_char* packet, uint32_t len);
-    
 };
 
 

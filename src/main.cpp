@@ -6,6 +6,7 @@
 #include <signal_handler.hpp>
 #include <handshake_extractor.hpp>
 #include <hc22000_exporter.hpp>
+#include <eapol_filter.hpp>
 
 
 int main(int argc, char* argv[])
@@ -18,6 +19,8 @@ int main(int argc, char* argv[])
     // const char* dev = argv[1];
     // const char* output_file = (argc >= 3) ? argv[2] : "/home/xichuz/workspace/whiff/dump.pcap";
 
+    std::unique_ptr<whiff::EapolFilter> filter = std::make_unique<whiff::EapolFilter>();
+
     // whiff::PacketHandler pkt_handler;
 
     // whiff::SignalHandler::set_callback([&]() { pkt_handler.stop(); });
@@ -27,7 +30,7 @@ int main(int argc, char* argv[])
 
     // std::cout << "[*] Finished capture.\n";
 
-    whiff::HandshakeExtractor extractor("/home/xichuz/workspace/whiff/dump.pcap");
+    whiff::HandshakeExtractor extractor("/home/xichuz/workspace/whiff/packets/dump2.pcap", filter.get());
     if (extractor.extract_handshake()) {
         std::cout << "[*] EAPOL handshake(s) found: " << extractor.get_eapol_packets().size() << "\n";
     } else {

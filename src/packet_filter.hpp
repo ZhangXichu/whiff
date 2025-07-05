@@ -1,3 +1,5 @@
+#pragma once
+
 #include <iostream>
 #include <cstring>
 #include <cstdint>
@@ -9,6 +11,7 @@ class PacketFilter {
 public:
 
 virtual bool match(const u_char* packet, uint32_t len) const = 0;
+virtual ~PacketFilter() = default;
 
 
 };

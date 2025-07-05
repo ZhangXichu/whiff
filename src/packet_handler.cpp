@@ -23,7 +23,6 @@ PacketHandler::~PacketHandler()
 void PacketHandler::pcap_callback(u_char* user, const struct pcap_pkthdr* header, const u_char* packet) {
     auto* ctx = reinterpret_cast<CaptureContext*>(user);
 
-    std::cout << "[*] Packet length: " << header->len << "\n";
     pcap_dump((u_char*)ctx->dumper, header, packet);
 }
 

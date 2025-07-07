@@ -17,11 +17,11 @@ int main(int argc, char* argv[])
     // }
 
     // const char* dev = argv[1];
-    // const char* output_file = (argc >= 3) ? argv[2] : "/home/xichuz/workspace/whiff/dump.pcap";
+    // const char* output_file = (argc >= 3) ? argv[2] : "/home/xichuz/workspace/whiff/dump3.pcap";
 
-    std::unique_ptr<whiff::EapolFilter> filter = std::make_unique<whiff::EapolFilter>();
+    // std::unique_ptr<whiff::EapolFilter> filter = std::make_unique<whiff::EapolFilter>();
 
-    // whiff::PacketHandler pkt_handler;
+    // whiff::PacketHandler pkt_handler(filter.get());
 
     // whiff::SignalHandler::set_callback([&]() { pkt_handler.stop(); });
     // whiff::SignalHandler::setup();
@@ -30,7 +30,9 @@ int main(int argc, char* argv[])
 
     // std::cout << "[*] Finished capture.\n";
 
-    whiff::HandshakeExtractor extractor("/home/xichuz/workspace/whiff/packets/dump2.pcap", filter.get());
+    std::unique_ptr<whiff::EapolFilter> filter = std::make_unique<whiff::EapolFilter>();
+
+    whiff::HandshakeExtractor extractor("/home/xichuz/workspace/whiff/packets/dump5.pcap");
     if (extractor.extract_handshake()) {
         std::cout << "[*] EAPOL handshake(s) found: " << extractor.get_eapol_packets().size() << "\n";
     } else {

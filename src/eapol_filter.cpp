@@ -6,8 +6,13 @@ bool EapolFilter::match(const u_char* packet, uint32_t len) const
 {
     if (len < 36) return false;
 
+    std::cout << "length: " << std::dec << len << std::endl;
+
     // Radiotap header length
     uint16_t radiotap_len = packet[2] | (packet[3] << 8);
+
+    std::cout << "radiotap_len: " << radiotap_len << std::endl;
+    
     if (len <= radiotap_len + 24) return false;
 
     const u_char* payload = packet + radiotap_len;
@@ -17,12 +22,18 @@ bool EapolFilter::match(const u_char* packet, uint32_t len) const
     uint8_t type = (fc >> 2) & 0x3;
     uint8_t subtype = (fc >> 4) & 0xf;
 
+    std::cout << "type: " << static_cast<int>(type) << std::endl;
+    std::cout << "subtype: " << static_cast<int>(subtype) << std::endl;
+
     // Only handle Data frames
     if (type != 2) return false;
 
     // Check if Address4 is present (ToDS + FromDS both set)
     bool has_addr4 = (fc & 0x0300) == 0x0300;
     size_t hdr_len = 24 + (has_addr4 ? 6 : 0);
+
+    std::cout << "hdr_len: " << hdr_len << std::endl;
+    std::cout << "has_addr4=" << std::boolalpha << has_addr4 << std::endl;
 
     // Add QoS control field if needed
     if (subtype & 0x08) {

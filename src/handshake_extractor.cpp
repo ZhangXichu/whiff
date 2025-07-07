@@ -9,9 +9,8 @@
 
 namespace whiff {
 
-HandshakeExtractor::HandshakeExtractor(const std::string& pcap_file, PacketFilter* filter)
-    : _pcap_file(pcap_file),
-      _filter(filter) {}
+HandshakeExtractor::HandshakeExtractor(const std::string& pcap_file)
+    : _pcap_file(pcap_file) {}
 
 HandshakeExtractor::~HandshakeExtractor() {}
 
@@ -30,14 +29,12 @@ bool HandshakeExtractor::extract_handshake() {
     while ((res = pcap_next_ex(handle, &header, &packet)) >= 0) {
         if (res == 0) continue;  // Timeout
 
-        if (_filter->match(packet, header->caplen)) {
-            EapolPacket pkt;
-            pkt.timestamp = header->ts;
-            pkt.raw_data.assign(packet, packet + header->caplen);
-            _eapol_packets.push_back(std::move(pkt));
+        EapolPacket pkt;
+        pkt.timestamp = header->ts;
+        pkt.raw_data.assign(packet, packet + header->caplen);
+        _eapol_packets.push_back(std::move(pkt));
 
-            std::cout << "[+] EAPOL packet found, len=" << header->caplen << "\n";
-        }
+        std::cout << "[+] EAPOL packet found, len=" << header->caplen << "\n";
     }
 
     pcap_close(handle);

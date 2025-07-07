@@ -12,7 +12,7 @@ namespace whiff {
 class HandshakeExtractor {
 
 public:
-    HandshakeExtractor(const std::string& pcap_file, PacketFilter* filter);
+    HandshakeExtractor(const std::string& pcap_file);
     ~HandshakeExtractor();
 
     bool extract_handshake();
@@ -22,7 +22,6 @@ public:
 
 private:
     std::string _pcap_file;
-    PacketFilter* _filter;
     std::vector<EapolPacket> _eapol_packets;
 };
 

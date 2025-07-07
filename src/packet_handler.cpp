@@ -2,6 +2,9 @@
 
 namespace whiff {
 
+PacketHandler::PacketHandler(PacketFilter* filter)
+ :_filter(filter) {}
+
 void PacketHandler::stop()
 {
     if (_dumper) {
@@ -23,9 +26,9 @@ PacketHandler::~PacketHandler()
 void PacketHandler::pcap_callback(u_char* user, const struct pcap_pkthdr* header, const u_char* packet) {
     auto* ctx = reinterpret_cast<CaptureContext*>(user);
 
-    std::cout << "[*] Packet length: " << header->len << "\n";
-
-    pcap_dump((u_char*)ctx->dumper, header, packet);
+    if (ctx->filter && ctx->filter->match(packet, header->len)) {
+        pcap_dump(reinterpret_cast<u_char*>(ctx->dumper), header, packet);
+    }
 }
 
 void PacketHandler::capture(const std::string& iface, const std::string& output_file)
@@ -48,8 +51,9 @@ void PacketHandler::capture(const std::string& iface, const std::string& output_
 
     std::cout << "[+] Capturing packets on " << iface << ", saving to: " << output_file << "\n";
 
-    CaptureContext ctx{ _dumper };
+    CaptureContext ctx{ _dumper, _filter };
     pcap_loop(_handle, 0, pcap_callback, reinterpret_cast<u_char*>(&ctx));
 }
+
 
 }

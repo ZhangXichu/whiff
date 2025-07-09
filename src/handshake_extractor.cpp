@@ -5,6 +5,7 @@
 #include <sstream>
 #include  <iomanip>
 #include <algorithm>
+#include  <unordered_map>
 #include <packet_filter.hpp>
 
 namespace whiff {
@@ -230,65 +231,72 @@ std::optional<HandshakeData> HandshakeExtractor::prepare_handshake_info() {
 
     std::optional<HandshakeData> best_handshake;
 
-    for (size_t i = 0; i + 1 < _eapol_packets.size(); ++i) {
-        const auto& pkt1 = _eapol_packets[i];
-        const auto& pkt2 = _eapol_packets[i + 1];
+    std::unordered_map<ReplayCounter, HandshakeBins> bins;
 
-        Eapol h1 = parse_packet(pkt1);
-        Eapol h2 = parse_packet(pkt2);
+    for (const auto& pkt : _eapol_packets) {
+        Eapol msg = parse_packet(pkt);
+        const auto& d = msg.key_descriptor;
+        ReplayCounter rc = utils::to_uint64_be(d.replay_counter);
 
-        std::cout << "        - h1: from_ap=" << std::boolalpha << h1.is_from_ap
-                  << ", has_mic=" << h1.has_mic << "\n";
-        std::cout << "        - h2: from_ap=" << std::boolalpha << h2.is_from_ap
-                  << ", has_mic=" << h2.has_mic << "\n";
-
-        // Both must have key descriptor
-        const auto& d1 = h1.key_descriptor;
-        const auto& d2 = h2.key_descriptor;
-
-        // --- Try M2 + M3 (preferred)
-        if (!h1.is_from_ap && h2.is_from_ap &&  // TODO: need to capture more packets and test it
-            h1.has_mic &&
-            d1.replay_counter == d2.replay_counter &&
-            !is_zero_nonce(d1.nonce)) 
-        {
-
-            std::cout << "        [+] Valid M2 + M3 handshake found\n";
-
-            HandshakeData hs;
-            hs.ap_mac = h2.src_mac;
-            hs.client_mac = h1.src_mac;
-            hs.anonce = d2.nonce;
-            hs.snonce = d1.nonce;
-            hs.mic = d1.mic;
-            hs.eapol_frame = h1.eapol_payload_zeroed;
-            hs.message_pair = 0x02; // M2 + M3
-
-            best_handshake = hs;  // prefer and continue
-            break;
+        if (msg.is_from_ap &&
+            !msg.has_mic &&
+            !is_zero_nonce(msg.key_descriptor.nonce)) {
+            bins[rc].m1s.push_back(msg);
+        }else if (!msg.is_from_ap && !is_zero_nonce(d.nonce)) {
+            // M2: from STA, has MIC, non-zero SNonce
+            bins[rc].m2s.push_back(msg);
+        } else if (msg.is_from_ap && !is_zero_nonce(d.nonce)) {
+            // M3: from AP, has MIC, ANonce must be present
+            bins[rc].m3s.push_back(msg);
+        } else if (!msg.is_from_ap && is_zero_nonce(d.nonce)) {
+            // M4: from STA, MIC with zeroed nonce
+            bins[rc].m4s.push_back(msg);
         }
+    }
 
-        // --- Try M1 + M2 (fallback)
-        if (h1.is_from_ap && !h2.is_from_ap &&
-            h2.has_mic &&
-            d1.replay_counter == d2.replay_counter &&
-            !is_zero_nonce(d2.nonce)) {
+    // Optional: print stats
+    for (const auto& [rc, bin] : bins) {
+        std::cout << "[*] RC " << rc << ": "
+                  << bin.m1s.size() << " M1, "
+                  << bin.m2s.size() << " M2, "
+                  << bin.m3s.size() << " M3, "
+                  << bin.m4s.size() << " M4\n";
 
-            // Only use if no better handshake found yet
-            if (!best_handshake.has_value()) 
-            {
-                std::cout << "        [+] Valid M1 + M2 handshake found\n";
+        // Preferred: M2 + M3
+        for (const auto& m2 : bin.m2s) {
+            for (const auto& m3 : bin.m3s) {
+                if (m2.src_mac != m3.dst_mac) continue;
 
                 HandshakeData hs;
-                hs.ap_mac = h1.src_mac;
-                hs.client_mac = h2.src_mac;
-                hs.anonce = d1.nonce;
-                hs.snonce = d2.nonce;
-                hs.mic = d2.mic;
-                hs.eapol_frame = h2.eapol_payload_zeroed;
-                hs.message_pair = 0x00; // M1 + M2
+                hs.ap_mac = m3.src_mac;
+                hs.client_mac = m2.src_mac;
+                hs.anonce = m3.key_descriptor.nonce;
+                hs.snonce = m2.key_descriptor.nonce;
+                hs.mic = m2.key_descriptor.mic;
+                hs.eapol_frame = m2.eapol_payload_zeroed;
+                hs.message_pair = 0x02;
 
-                best_handshake = hs;
+                std::cout << "        [+] Valid M2 + M3 handshake found\n";
+                return hs;
+            }
+        }
+
+        // Fallback: M1 + M2
+        for (const auto& m1 : bin.m1s) {
+            for (const auto& m2 : bin.m2s) {
+                if (m2.src_mac != m1.dst_mac) continue;
+
+                HandshakeData hs;
+                hs.ap_mac = m1.src_mac;
+                hs.client_mac = m2.src_mac;
+                hs.anonce = m1.key_descriptor.nonce;
+                hs.snonce = m2.key_descriptor.nonce;
+                hs.mic = m2.key_descriptor.mic;
+                hs.eapol_frame = m2.eapol_payload_zeroed;
+                hs.message_pair = 0x00;
+
+                std::cout << "        [+] Valid M1 + M2 handshake found\n";
+                return hs;
             }
         }
     }

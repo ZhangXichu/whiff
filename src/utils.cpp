@@ -31,5 +31,14 @@ std::string mac_to_string(const std::array<uint8_t, 6>& mac) {
         return oss.str();
     }
 
+uint64_t to_uint64_be(const std::array<uint8_t, 8>& bytes) {
+    uint64_t result = 0;
+    for (int i = 0; i < 8; ++i) {
+        result = (result << 8) | bytes[i];
+    }
+    return result;
 }
+
+}
+
 }

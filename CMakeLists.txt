@@ -16,7 +16,8 @@ add_executable(whiff
     src/handshake_extractor.cpp
     src/utils.cpp
     src/hc22000_exporter.cpp
-    src/eapol_filter.cpp)
+    src/eapol_filter.cpp
+    src/beacon_filter.cpp)
 target_include_directories(
     whiff
     PRIVATE

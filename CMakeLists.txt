@@ -17,7 +17,9 @@ add_executable(whiff
     src/utils.cpp
     src/hc22000_exporter.cpp
     src/eapol_filter.cpp
-    src/beacon_filter.cpp)
+    src/beacon_filter.cpp
+    src/whiff.cpp
+    src/access_point_registry.cpp)
 target_include_directories(
     whiff
     PRIVATE

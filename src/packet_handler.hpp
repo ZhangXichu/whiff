@@ -5,6 +5,7 @@
 #include <iostream>
 #include <memory>
 #include <queue>
+#include <functional>
 #include <packet_handler.hpp>
 #include <packet_filter.hpp>
 
@@ -13,17 +14,20 @@ namespace whiff {
 class PacketHandler {
 
 public:
+
+using PacketCallback = std::function<void(const struct pcap_pkthdr*, const u_char*)>;
+
 PacketHandler(PacketFilter* filter);
 ~PacketHandler();
 
-void capture(const std::string& iface, const std::string& output_file);
+void capture(const std::string& iface, const std::string& output_file, PacketCallback on_match);
 void stop();
 
 private:
-
 struct CaptureContext {
     pcap_dumper_t* dumper;
     PacketFilter*  filter;
+    PacketCallback on_match;
 };
 
 

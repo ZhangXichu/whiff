@@ -26,12 +26,14 @@ PacketHandler::~PacketHandler()
 void PacketHandler::pcap_callback(u_char* user, const struct pcap_pkthdr* header, const u_char* packet) {
     auto* ctx = reinterpret_cast<CaptureContext*>(user);
 
-    if (ctx->filter && ctx->filter->match(packet, header->len)) {
+    if (ctx->filter && ctx->filter->match(packet, header->len)) {  // TODO: check ssid
         pcap_dump(reinterpret_cast<u_char*>(ctx->dumper), header, packet);
+
+        ctx->on_match(header, packet);
     }
 }
 
-void PacketHandler::capture(const std::string& iface, const std::string& output_file)
+void PacketHandler::capture(const std::string& iface, const std::string& output_file, PacketCallback on_match)
 {
     char errbuf[PCAP_ERRBUF_SIZE];
 
@@ -51,7 +53,7 @@ void PacketHandler::capture(const std::string& iface, const std::string& output_
 
     std::cout << "[+] Capturing packets on " << iface << ", saving to: " << output_file << "\n";
 
-    CaptureContext ctx{ _dumper, _filter };
+    CaptureContext ctx{ _dumper, _filter, on_match};
     pcap_loop(_handle, 0, pcap_callback, reinterpret_cast<u_char*>(&ctx));
 }
 

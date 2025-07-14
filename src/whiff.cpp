@@ -20,19 +20,8 @@ Whiff Whiff::from_args(int argc, char** argv) {
         app._interface = argv[2];
         app._outfile = argv[3];
 
-    } else if (flag == "--dump") {
-        if (argc < 4) throw std::runtime_error("Missing args for --dump");
-        app._mode = Mode::Dump;
-        app._interface = argv[2];
-        app._outfile = argv[3];
-
-    } else if (flag == "--dump-all") {
-        if (argc < 4) throw std::runtime_error("Missing args for --dump-all");
-        app._mode = Mode::DumpAll;
-        app._interface = argv[2];
-        app._outfile = argv[3];
-
-    } else if (flag == "--export") {
+    } 
+    else if (flag == "--export") {
         if (argc < 4) throw std::runtime_error("Missing args for --export");
         app._mode = Mode::Export;
         app._interface = argv[2];
@@ -44,17 +33,29 @@ Whiff Whiff::from_args(int argc, char** argv) {
     return app;
 }
 
+
 void Whiff::run() {
 
     switch (_mode) {
         case Mode::Capture: {
+            
             std::unique_ptr<BeaconFilter> filter = std::make_unique<BeaconFilter>();
-            PacketHandler pkt_handler(filter.get());
 
-            SignalHandler::set_callback([&]() { pkt_handler.stop(); });
+            _pkt_handler  = std::make_unique<PacketHandler>(filter.get());
+
+            SignalHandler::set_callback([&]() { _pkt_handler->stop(); });
             SignalHandler::setup();
 
-            pkt_handler.capture(_interface.c_str(), _outfile.c_str());
+            _pkt_handler->capture(_interface.c_str(), _outfile.c_str(), 
+                [&](const struct pcap_pkthdr* hdr, const u_char* pkt) 
+                {
+                    if (auto info = filter->parse(pkt, hdr->len)) 
+                    {
+                        std::cout << "adding entry to registry" << std::endl;
+                        _registry.add_entry(*info);
+                    }
+                }
+            );
 
             std::cout << "[*] Finished capture.\n";
             break;

@@ -5,6 +5,7 @@
 #include <beacon_filter.hpp>
 #include <handshake_extractor.hpp>
 #include <hc22000_exporter.hpp>
+#include <access_point_registry.hpp>
 
 namespace whiff {
 
@@ -24,6 +25,8 @@ enum class Mode {
 Mode _mode;
 std::string _outfile;
 std::string _interface;
+AccessPointRegistry _registry;
+std::unique_ptr<PacketHandler> _pkt_handler;
 
 };
 

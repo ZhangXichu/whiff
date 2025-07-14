@@ -2,7 +2,7 @@
 
 namespace whiff {
 
-bool EapolFilter::match(const u_char* packet, uint32_t len) const
+bool EapolFilter::match(const u_char* packet, uint32_t len) const  // TODO: check BSSID (derive from SSID -> need to get beacon, implement beacon filter first)
 {
     if (len < 36) return false;
 

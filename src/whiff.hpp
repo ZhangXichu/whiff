@@ -1,6 +1,8 @@
 #pragma once
 
 #include <memory>
+#include <mutex>
+#include <condition_variable>
 #include <packet_handler.hpp>
 #include <beacon_filter.hpp>
 #include <handshake_extractor.hpp>
@@ -12,7 +14,7 @@ namespace whiff {
 class Whiff {
 
 public:
-static Whiff from_args(int argc, char** argv);
+static std::unique_ptr<Whiff> from_args(int argc, char** argv);
 void run();
 
 private:
@@ -23,6 +25,8 @@ enum class Mode {
     Export
 };
 Mode _mode;
+std::mutex _mutex;
+std::condition_variable _cv;
 std::string _outfile;
 std::string _interface;
 AccessPointRegistry _registry;

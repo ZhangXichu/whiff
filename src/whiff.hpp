@@ -5,6 +5,7 @@
 #include <condition_variable>
 #include <packet_handler.hpp>
 #include <beacon_filter.hpp>
+#include <eapol_filter.hpp>
 #include <handshake_extractor.hpp>
 #include <hc22000_exporter.hpp>
 #include <access_point_registry.hpp>
@@ -31,6 +32,8 @@ std::string _outfile;
 std::string _interface;
 AccessPointRegistry _registry;
 std::unique_ptr<PacketHandler> _pkt_handler;
+std::unique_ptr<BeaconFilter> _beacon_filter;
+std::unique_ptr<EapolFilter> _eapol_filter;
 
 };
 

@@ -57,5 +57,8 @@ void PacketHandler::capture(const std::string& iface, const std::string& output_
     pcap_loop(_handle, 0, pcap_callback, reinterpret_cast<u_char*>(&ctx));
 }
 
+void PacketHandler::set_filter(PacketFilter* new_filter) { // TODO: maybe remove this
+    _filter = new_filter;
+}
 
 }

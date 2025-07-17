@@ -22,6 +22,7 @@ PacketHandler(PacketFilter* filter);
 
 void capture(const std::string& iface, const std::string& output_file, PacketCallback on_match);
 void stop();
+void set_filter(PacketFilter* new_filter);
 
 private:
 struct CaptureContext {

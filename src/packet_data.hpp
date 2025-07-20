@@ -8,6 +8,11 @@
 
 namespace whiff {
 
+struct BeaconInfo {
+  std::string ssid;
+  std::string bssid;
+};
+
 struct EapolPacket 
 {
     struct timeval timestamp;

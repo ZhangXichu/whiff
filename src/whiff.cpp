@@ -41,17 +41,16 @@ void Whiff::run() {
         case Mode::Capture: {
 
             std::string target_ssid = "realme 8"; // TODO: make this part of command line arguement
-            std::optional<std::string> target_bssid;
+            _target_bssid = std::nullopt;
             
-            _beacon_filter = std::make_unique<BeaconFilter>();
-
+            _beacon_filter = std::make_unique<BeaconFilter>(_registry, _mutex, _cv, target_ssid);
             _pkt_handler  = std::make_unique<PacketHandler>(_beacon_filter.get());
 
             std::thread monitor([&]() {
                 std::unique_lock<std::mutex> lock(_mutex);
                 _cv.wait(lock, [&]() { 
-                    std::cout << "target_bssid gets value!" << std::endl;
-                    return target_bssid.has_value(); 
+                    std::cout << "target_bssid gets value : " << _target_bssid.has_value() << std::endl;
+                    return _target_bssid.has_value(); 
                 });
                 _pkt_handler->stop();
             });
@@ -61,7 +60,7 @@ void Whiff::run() {
 
                 {
                     std::lock_guard<std::mutex> lock(_mutex);
-                    target_bssid = std::nullopt; 
+                    // target_bssid = std::nullopt; 
                     _cv.notify_one();
                 }
 
@@ -70,41 +69,20 @@ void Whiff::run() {
             });
             SignalHandler::setup();
 
-            _pkt_handler->capture(_interface.c_str(), _outfile.c_str(), 
-                [&](const struct pcap_pkthdr* hdr, const u_char* pkt) 
-                {
-                    if (auto info = _beacon_filter->parse(pkt, hdr->len)) 
-                    {
-                        std::cout << "adding entry to registry" << std::endl;
-                        _registry.add_entry(*info);
-
-                        if (info->ssid == target_ssid) {
-                            std::cout << "AP " << target_ssid << " detected" << std::endl;
-
-                            target_bssid = info->bssid;
-                            _cv.notify_one();
-                        }
-                    }
-                }
-            );
+            _pkt_handler->capture(_interface.c_str(), _outfile.c_str());
 
             if (monitor.joinable())
                 monitor.join();
 
             _pkt_handler.reset();  
 
-            if (target_bssid) {
-                std::cout << "[*] Starting EAPOL capture for BSSID: " << *target_bssid << "\n";
+            if (_target_bssid) {
+                std::cout << "[*] Starting EAPOL capture for BSSID: " << *_target_bssid << "\n";
 
-                _eapol_filter = std::make_unique<EapolFilter>(*target_bssid);
+                _eapol_filter = std::make_unique<EapolFilter>(*_target_bssid);
                 _pkt_handler = std::make_unique<PacketHandler>(_eapol_filter.get());
 
-                _pkt_handler->capture(_interface.c_str(), _outfile.c_str(),
-                    [&](const struct pcap_pkthdr* hdr, const u_char* pkt) {
-                        if (_eapol_filter->match(pkt, hdr->len)) {
-                            std::cout << "[*] EAPOL packet matched\n";
-                        }
-                    });
+                _pkt_handler->capture(_interface.c_str(), _outfile.c_str());
 
                 std::cout << "[*] Finished EAPOL capture.\n";
             } else {

@@ -31,6 +31,7 @@ std::condition_variable _cv;
 std::string _outfile;
 std::string _interface;
 AccessPointRegistry _registry;
+std::optional<std::string> _target_bssid;
 std::unique_ptr<PacketHandler> _pkt_handler;
 std::unique_ptr<BeaconFilter> _beacon_filter;
 std::unique_ptr<EapolFilter> _eapol_filter;

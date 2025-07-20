@@ -5,26 +5,30 @@
 
 namespace whiff {
 
+BeaconFilter::BeaconFilter(AccessPointRegistry& registry,
+                 std::mutex& mutex,
+                 std::condition_variable& cv,
+                 std::string& target_ssid)
+        : _registry(registry)
+        , _mutex(mutex)
+        , _cv(cv)
+        , _target_ssid(target_ssid)
+    {}
+
 bool BeaconFilter::match(const u_char* packet, uint32_t len) const
 {
-    return parse(packet, len).has_value();
-}
-
-
-std::optional<BeaconFilter::BeaconInfo> BeaconFilter::parse(const u_char* packet, uint32_t len) const
-{
     constexpr uint8_t BEACON_SUBTYPE = 0x8;      // 1000b
-    if (len < 4) return std::nullopt;                   // need at least radiotap header
+    if (len < 4) return false;                   // need at least radiotap header
 
     // Skip the radiotap header
     const uint16_t rt_len = le16(packet + 2);    // version (1) + pad (1) + len (2)
-    if (rt_len >= len) return std::nullopt;
+    if (rt_len >= len) return false;
 
     std::cout << "Radiotap header length: " << rt_len << '\n';
 
     const u_char* hdr   = packet + rt_len;       // start of IEEE-802.11 header
     const uint32_t hlen = len  - rt_len;
-    if (hlen < 36) return std::nullopt;                 // 24-byte mgmt hdr + 12 fixed parms
+    if (hlen < 36) return false;                 // 24-byte mgmt hdr + 12 fixed parms
 
     std::cout << "IEEE 802.11 header length: " << hlen << '\n';
 
@@ -33,7 +37,7 @@ std::optional<BeaconFilter::BeaconInfo> BeaconFilter::parse(const u_char* packet
     const uint8_t stype = subtype(fc);
     std::cout << "802.11 frame subtype: " << static_cast<int>(stype) << '\n';
 
-    if (!is_mgmt(fc) || stype != BEACON_SUBTYPE) return std::nullopt;
+    if (!is_mgmt(fc) || stype != BEACON_SUBTYPE) return false;
 
     // Extract BSSID (Addr3 = bytes 16-21 in mgmt header)
     const u_char* bssid_ptr = hdr + 16;
@@ -72,7 +76,21 @@ std::optional<BeaconFilter::BeaconInfo> BeaconFilter::parse(const u_char* packet
 
             std::cout << " [SSID = \"" << ssid << "\"]";
 
-            return BeaconInfo{ std::move(ssid), std::move(bssid) };;
+
+            //  Update the cache (overwrites if a beacon changed channel)
+            // _ssid_to_bssid.insert_or_assign(std::move(ssid), bssid);
+
+            _registry.add_entry({ .ssid = std::move(ssid), .bssid = std::move(bssid) });
+
+            {
+                std::lock_guard<std::mutex> lock(_mutex);
+                if (_target_ssid == ssid) {
+                    std::cout << "[BeaconFilter] Target BSSID for " << ssid << "detected, notifying...\n";
+                    _cv.notify_one();
+                }
+            }
+
+            break;
         }
 
         std::cout << ", Value = ";
@@ -85,7 +103,7 @@ std::optional<BeaconFilter::BeaconInfo> BeaconFilter::parse(const u_char* packet
 
     std::cout << "\n---- End Tagged Parameters ----\n";
 
-    return std::nullopt;                                 // still a Beacon even w/o SSID
+    return true;                                 // still a Beacon even w/o SSID
 }
 
 

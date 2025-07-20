@@ -3,7 +3,7 @@
 
 namespace whiff {
 
-void AccessPointRegistry::add_entry(const BeaconFilter::BeaconInfo& info) 
+void AccessPointRegistry::add_entry(const BeaconInfo& info) 
 {
     _ssid_to_bssid.insert_or_assign(info.ssid, info.bssid);
 }

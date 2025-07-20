@@ -3,14 +3,15 @@
 #include <unordered_map>
 #include <string>
 #include <cstdint>
-#include <beacon_filter.hpp>
+#include <optional>
+#include <packet_data.hpp>
 
 namespace whiff {
 
 class AccessPointRegistry {
 
 public:
-void add_entry(const BeaconFilter::BeaconInfo& info);
+void add_entry(const BeaconInfo& info);
 std::optional<std::string> get_bssid(const std::string& ssid) const;
 
 private:

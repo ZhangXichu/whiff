@@ -8,11 +8,13 @@ namespace whiff {
 BeaconFilter::BeaconFilter(AccessPointRegistry& registry,
                  std::mutex& mutex,
                  std::condition_variable& cv,
-                 std::string& target_ssid)
+                 std::string& target_ssid,
+                 std::optional<std::string>& target_bssid)
         : _registry(registry)
         , _mutex(mutex)
         , _cv(cv)
         , _target_ssid(target_ssid)
+        , _target_bssid(target_bssid)
     {}
 
 bool BeaconFilter::match(const u_char* packet, uint32_t len) const
@@ -76,16 +78,16 @@ bool BeaconFilter::match(const u_char* packet, uint32_t len) const
 
             std::cout << " [SSID = \"" << ssid << "\"]";
 
-
             //  Update the cache (overwrites if a beacon changed channel)
             // _ssid_to_bssid.insert_or_assign(std::move(ssid), bssid);
 
-            _registry.add_entry({ .ssid = std::move(ssid), .bssid = std::move(bssid) });
+            _registry.add_entry({ .ssid = ssid, .bssid = bssid });
 
             {
                 std::lock_guard<std::mutex> lock(_mutex);
-                if (_target_ssid == ssid) {
-                    std::cout << "[BeaconFilter] Target BSSID for " << ssid << "detected, notifying...\n";
+                if (std::equal(ssid.begin(), ssid.end(), _target_ssid.begin(), _target_ssid.end())) {
+                    std::cout << "[BeaconFilter] Target BSSID for " << ssid << " detected, notifying...\n";
+                    _target_bssid = bssid;
                     _cv.notify_one();
                 }
             }

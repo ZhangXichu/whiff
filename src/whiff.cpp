@@ -43,7 +43,7 @@ void Whiff::run() {
             std::string target_ssid = "realme 8"; // TODO: make this part of command line arguement
             _target_bssid = std::nullopt;
             
-            _beacon_filter = std::make_unique<BeaconFilter>(_registry, _mutex, _cv, target_ssid);
+            _beacon_filter = std::make_unique<BeaconFilter>(_registry, _mutex, _cv, target_ssid, _target_bssid);
             _pkt_handler  = std::make_unique<PacketHandler>(_beacon_filter.get());
 
             std::thread monitor([&]() {

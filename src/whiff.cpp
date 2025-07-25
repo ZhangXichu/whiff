@@ -50,7 +50,7 @@ void Whiff::run() {
                 std::unique_lock<std::mutex> lock(_mutex);
                 _cv.wait(lock, [&]() { 
                     std::cout << "target_bssid gets value : " << _target_bssid.has_value() << std::endl;
-                    return _target_bssid.has_value(); 
+                    return _target_bssid.has_value() || _abort.load(); 
                 });
                 _pkt_handler->stop();
             });
@@ -60,7 +60,7 @@ void Whiff::run() {
 
                 {
                     std::lock_guard<std::mutex> lock(_mutex);
-                    // target_bssid = std::nullopt; 
+                    _abort.store(true);
                     _cv.notify_one();
                 }
 

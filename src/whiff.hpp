@@ -2,6 +2,7 @@
 
 #include <memory>
 #include <mutex>
+#include <atomic>
 #include <condition_variable>
 #include <packet_handler.hpp>
 #include <beacon_filter.hpp>
@@ -25,6 +26,7 @@ enum class Mode {
     DumpAll,
     Export
 };
+std::atomic<bool> _abort = false;
 Mode _mode;
 std::mutex _mutex;
 std::condition_variable _cv;

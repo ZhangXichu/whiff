@@ -6,15 +6,23 @@ A very lightweight wifi handshake analyzer and WPA2 cracker toolkit. It captures
 ### dependencies
 
 - `libcap` 
+- `loguru`
 
+### install conan packages and build project
 
-### build
-```bash
-mkdir build
-cd build
-cmake ..
-make
-```
+1. run `setup_venv.sh` to prepare the virtual environment and install `conan`
+2. activate virtual environment
+    ```bash
+    source .venv/bin/activate
+    ```
+3. build project
+    ```bash
+    conan install . --output-folder=build --build=missing -s build_type=Debug
+    
+    cmake -S . -B build -DCMAKE_TOOLCHAIN_FILE=build/conan_toolchain.cmake -DCMAKE_PREFIX_PATH=build   -DCMAKE_BUILD_TYPE=Debug
+
+    cmake --build build
+    ```
 
 ### usage
 

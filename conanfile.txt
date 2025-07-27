@@ -1,0 +1,6 @@
+[requires]
+loguru/cci.20230406
+
+[generators]
+CMakeDeps
+CMakeToolchain

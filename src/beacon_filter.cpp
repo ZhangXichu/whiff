@@ -2,6 +2,7 @@
 
 #include <utils.hpp>
 #include <array>
+#include <loguru.hpp>
 
 namespace whiff {
 
@@ -26,18 +27,19 @@ bool BeaconFilter::match(const u_char* packet, uint32_t len) const
     const uint16_t rt_len = le16(packet + 2);    // version (1) + pad (1) + len (2)
     if (rt_len >= len) return false;
 
-    std::cout << "Radiotap header length: " << rt_len << '\n';
+    LOG_F(1, "Radiotap header length: %u", rt_len);
 
     const u_char* hdr   = packet + rt_len;       // start of IEEE-802.11 header
     const uint32_t hlen = len  - rt_len;
     if (hlen < 36) return false;                 // 24-byte mgmt hdr + 12 fixed parms
 
-    std::cout << "IEEE 802.11 header length: " << hlen << '\n';
+    LOG_F(1, "IEEE 802.11 header length: %u", hlen);
 
     // Check type and subtype => Beacon management frame
     const uint16_t fc = le16(hdr);
     const uint8_t stype = subtype(fc);
-    std::cout << "802.11 frame subtype: " << static_cast<int>(stype) << '\n';
+
+    LOG_F(1, "802.11 frame subtype: %u", stype);
 
     if (!is_mgmt(fc) || stype != BEACON_SUBTYPE) return false;
 
@@ -47,7 +49,7 @@ bool BeaconFilter::match(const u_char* packet, uint32_t len) const
     std::memcpy(mac.data(), bssid_ptr, 6);
     std::string bssid = utils::mac_to_string(mac);
 
-    std::cout << "BSSID: " << bssid << '\n';
+    LOG_F(1, "[BeaconFilter] BSSID: %s", bssid.c_str());
 
     // Walk tagged parameters to grab SSID (tag ID 0)
     const u_char* tags = hdr + 36;               // 24 hdr + 12 fixed
@@ -55,7 +57,7 @@ bool BeaconFilter::match(const u_char* packet, uint32_t len) const
 
     int tag_index = 0;
 
-    std::cout << "---- Begin Tagged Parameters ----\n";
+    LOG_F(1, "---- Begin Tagged Parameters ----\n");
 
     while (tags + 2 <= end) {
         const uint8_t tag_id  = tags[0];
@@ -63,20 +65,18 @@ bool BeaconFilter::match(const u_char* packet, uint32_t len) const
         const u_char* tag_val = tags + 2;
 
         if (tags + 2 + tag_len > end) {
-            std::cout << "Malformed tag at index " << tag_index << " (truncated)\n";
+            LOG_F(ERROR, "Malformed tag at index %d (truncated)", tag_index);
             break;
         }
 
-        std::cout << "Tag " << tag_index++
-              << ": ID = " << static_cast<int>(tag_id)
-              << ", Len = " << static_cast<int>(tag_len);
+        LOG_F(1, "Tag %d: ID = %d, Len = %d", tag_index++, tag_id, tag_len);
 
         if (tag_id == 0 /*SSID*/) {
             if (tag_len == 0) break;             // hidden SSID, ignore
             const char* ssid_start = reinterpret_cast<const char*>(tags + 2);
             std::string ssid(ssid_start, tag_len);
 
-            std::cout << " [SSID = \"" << ssid << "\"]";
+            LOG_F(1, "[BeaconFilter] Found SSID: %s", ssid.c_str());
 
             //  Update the cache (overwrites if a beacon changed channel)
             // _ssid_to_bssid.insert_or_assign(std::move(ssid), bssid);
@@ -85,8 +85,9 @@ bool BeaconFilter::match(const u_char* packet, uint32_t len) const
 
             {
                 std::lock_guard<std::mutex> lock(_mutex);
-                if (std::equal(ssid.begin(), ssid.end(), _target_ssid.begin(), _target_ssid.end())) {
-                    std::cout << "[BeaconFilter] Target BSSID for " << ssid << " detected, notifying...\n";
+                if (std::equal(ssid.begin(), ssid.end(), _target_ssid.begin(), _target_ssid.end())) 
+                {
+                    LOG_F(INFO, "[BeaconFilter] Target SSID %s found, notifying cv", ssid.c_str());
                     _target_bssid = bssid;
                     _cv.notify_one();
                 }
@@ -95,15 +96,10 @@ bool BeaconFilter::match(const u_char* packet, uint32_t len) const
             break;
         }
 
-        std::cout << ", Value = ";
-        for (int i = 0; i < tag_len; ++i)
-            std::printf("%02x ", tag_val[i]);
-        std::cout << '\n';
-
         tags += 2 + tag_len;
     }
 
-    std::cout << "\n---- End Tagged Parameters ----\n";
+    LOG_F(1, "\n---- End Tagged Parameters ----\n");
 
     return true;                                 // still a Beacon even w/o SSID
 }

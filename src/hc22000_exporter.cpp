@@ -3,6 +3,7 @@
 #include <cctype>
 #include <algorithm>
 #include <iostream>
+#include <loguru.hpp>
 
 namespace whiff {
 
@@ -33,7 +34,7 @@ std::string Hc22000Exporter::generate_line(const HandshakeData& h, const std::st
     line += to_hex(h.eapol_frame.data(), h.eapol_frame.size()) + "*";
     line += "00";
 
-    std::cout << "[*] Exported line:\n" << line << "\n";
+    LOG_F(INFO, "Exported line: %s", line.c_str());
 
     return line;
 }

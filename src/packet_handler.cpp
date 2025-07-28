@@ -1,5 +1,7 @@
 #include "packet_handler.hpp"
 
+#include <loguru.hpp>
+
 namespace whiff {
 
 PacketHandler::PacketHandler(PacketFilter* filter)
@@ -7,25 +9,23 @@ PacketHandler::PacketHandler(PacketFilter* filter)
 
 void PacketHandler::stop()
 {
-    if (_dumper) {
-        pcap_dump_close(_dumper);
-        _dumper = nullptr;
-    }
     if (_handle) {
-        pcap_close(_handle);
-        _handle = nullptr;
+        pcap_breakloop(_handle);
     }
 }
 
 PacketHandler::~PacketHandler()
 {
-    std::cout << "dtor called" << std::endl;
+    LOG_F(1, "PacketHandler destructor called");
     stop();
 }
 
 void PacketHandler::pcap_callback(u_char* user, const struct pcap_pkthdr* header, const u_char* packet) {
 
-    std::cout << "pcap_callback called" << std::endl;
+// TODO: check here if _target_bssid is set
+// if so break the loop
+
+    LOG_F(1, "pcap_callback called.");
 
     auto* ctx = reinterpret_cast<CaptureContext*>(user);
 
@@ -40,22 +40,33 @@ void PacketHandler::capture(const std::string& iface, const std::string& output_
 
     _handle = pcap_open_live(iface.c_str(), BUFSIZ, 1, 1000, errbuf);
     if (!_handle) {
-        std::cerr << "[-] pcap_open_live failed: " << errbuf << "\n";
+        LOG_F(ERROR, "pcap_open_live failed: %s", errbuf);
         return;
     }
 
     _dumper = pcap_dump_open(_handle, output_file.c_str());
-    if (!_dumper) {
-        std::cerr << "[-] pcap_dump_open failed: " << pcap_geterr(_handle) << "\n";
+    if (!_dumper) 
+    {
+        LOG_F(ERROR, "pcap_dump_open failed: %s", pcap_geterr(_handle));
         pcap_close(_handle);
         _handle = nullptr;
         return;
     }
 
-    std::cout << "[+] Capturing packets on " << iface << ", saving to: " << output_file << "\n";
+    LOG_F(INFO, "Starting packet capture on interface: %s, saving to %s", iface.c_str(), output_file.c_str());
 
     CaptureContext ctx{ _dumper, _filter};
     pcap_loop(_handle, 0, pcap_callback, reinterpret_cast<u_char*>(&ctx));
+
+    if (_dumper) {
+        pcap_dump_close(_dumper);
+        _dumper = nullptr;
+    }
+
+    if (_handle) {
+        pcap_close(_handle);
+        _handle = nullptr;
+    }
 }
 
 void PacketHandler::set_filter(PacketFilter* new_filter) { // TODO: maybe remove this

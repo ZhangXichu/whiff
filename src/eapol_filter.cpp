@@ -1,4 +1,5 @@
 #include <eapol_filter.hpp>
+#include <loguru.hpp>
 
 namespace whiff {
 
@@ -16,12 +17,12 @@ bool EapolFilter::match(const u_char* packet, uint32_t len) const  // TODO: chec
 {
     if (len < 36) return false;
 
-    std::cout << "length: " << std::dec << len << std::endl;
+    LOG_F(1, "[EapolFilter] Packet length: %u", len);
 
     // Radiotap header length
     uint16_t radiotap_len = packet[2] | (packet[3] << 8);
 
-    std::cout << "radiotap_len: " << radiotap_len << std::endl;
+    LOG_F(1, "[EapolFilter] Radiotap length: %u", radiotap_len);
     
     if (len <= radiotap_len + 24) return false;
 
@@ -32,8 +33,7 @@ bool EapolFilter::match(const u_char* packet, uint32_t len) const  // TODO: chec
     uint8_t type = (fc >> 2) & 0x3;
     uint8_t subtype = (fc >> 4) & 0xf;
 
-    std::cout << "type: " << static_cast<int>(type) << std::endl;
-    std::cout << "subtype: " << static_cast<int>(subtype) << std::endl;
+    LOG_F(1, "[EapolFilter] type: %u, subtype: %u", type, subtype);
 
     // Only handle Data frames
     if (type != 2) return false;
@@ -45,8 +45,8 @@ bool EapolFilter::match(const u_char* packet, uint32_t len) const  // TODO: chec
     bool has_addr4 = (fc & 0x0300) == 0x0300;
     size_t hdr_len = 24 + (has_addr4 ? 6 : 0);
 
-    std::cout << "hdr_len: " << hdr_len << std::endl;
-    std::cout << "has_addr4=" << std::boolalpha << has_addr4 << std::endl;
+    LOG_F(1, "[EapolFilter] Header length: %zu", hdr_len);
+    LOG_F(1, "[EapolFilter] has_addr4: %s", has_addr4 ? "true" : "false");
 
     // Add QoS control field if needed
     if (subtype & 0x08) {
@@ -67,10 +67,10 @@ bool EapolFilter::match(const u_char* packet, uint32_t len) const  // TODO: chec
             return std::string(buf);
     };
 
-    std::cout << "[debug] ToDS=" << to_ds << ", FromDS=" << from_ds << "\n";
-    std::cout << "        Addr1 (dst)  = " << format_mac(addr1) << "\n";
-    std::cout << "        Addr2 (src)  = " << format_mac(addr2) << "\n";
-    std::cout << "        Addr3 (BSSID?) = " << format_mac(addr3) << "\n";
+    LOG_F(1, "[debug] ToDS=%d, FromDS=%d", to_ds, from_ds);
+    LOG_F(1, "        Addr1 (dst)     = %s", format_mac(addr1).c_str());
+    LOG_F(1, "        Addr2 (src)     = %s", format_mac(addr2).c_str());
+    LOG_F(1, "        Addr3 (BSSID?)  = %s", format_mac(addr3).c_str());
 
     // Determine BSSID location
     const u_char* bssid_ptr = nullptr;
@@ -85,9 +85,11 @@ bool EapolFilter::match(const u_char* packet, uint32_t len) const  // TODO: chec
     }
 
     // Debug print
-    std::cout << "[debug] Comparing BSSID\n";
-    std::cout << "        expected = " << format_mac(_bssid.data()) << "\n";
-    std::cout << "        in frame = " << format_mac(bssid_ptr) << "\n";
+    LOG_F(1, "[debug] Comparing BSSID\n"
+         "        expected = %s\n"
+         "        in frame = %s",
+         format_mac(_bssid.data()).c_str(),
+         format_mac(bssid_ptr).c_str());
 
     // Compare BSSID
     if (!std::equal(_bssid.begin(), _bssid.end(), bssid_ptr)) {
@@ -100,11 +102,13 @@ bool EapolFilter::match(const u_char* packet, uint32_t len) const  // TODO: chec
     if (llc[0] == 0xAA && llc[1] == 0xAA && llc[2] == 0x03) {
         uint16_t ethertype = (llc[6] << 8) | llc[7];
 
-        std::cout << "[debug] Packet len=" << len
-          << ", radiotap=" << radiotap_len
-          << ", 802.11 hdr=" << hdr_len
-          << ", llc[0-2]=" << std::hex << (int)llc[0] << " " << (int)llc[1] << " " << (int)llc[2]
-          << ", ethertype=" << std::hex << ethertype << "\n";
+        LOG_F(1, "[debug] Packet len=%u, radiotap=%d, 802.11 hdr=%zu, "
+         "llc[0-2]=%02x %02x %02x, ethertype=0x%04x",
+            len, radiotap_len, hdr_len,
+            static_cast<uint8_t>(llc[0]),
+            static_cast<uint8_t>(llc[1]),
+            static_cast<uint8_t>(llc[2]),
+            ethertype);
 
         return ethertype == 0x888E;
     }

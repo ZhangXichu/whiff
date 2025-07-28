@@ -6,6 +6,7 @@
 #include  <iomanip>
 #include <algorithm>
 #include  <unordered_map>
+#include <loguru.hpp>
 #include <packet_filter.hpp>
 
 namespace whiff {
@@ -18,8 +19,9 @@ HandshakeExtractor::~HandshakeExtractor() {}
 bool HandshakeExtractor::extract_handshake() {
     char errbuf[PCAP_ERRBUF_SIZE];
     pcap_t* handle = pcap_open_offline(_pcap_file.c_str(), errbuf);
-    if (!handle) {
-        std::cerr << "[-] Failed to open pcap: " << errbuf << "\n";
+    if (!handle) 
+    {
+        LOG_F(ERROR, "Failed to open pcap: %s", errbuf);
         return false;
     }
 
@@ -35,7 +37,7 @@ bool HandshakeExtractor::extract_handshake() {
         pkt.raw_data.assign(packet, packet + header->caplen);
         _eapol_packets.push_back(std::move(pkt));
 
-        std::cout << "[+] EAPOL packet found, len=" << header->caplen << "\n";
+        LOG_F(INFO, "[+] EAPOL packet found, len=%d", header->caplen);
     }
 
     pcap_close(handle);
@@ -89,46 +91,48 @@ Eapol HandshakeExtractor::parse_packet(const EapolPacket& pkt)
 
     if (!to_ds && !from_ds) {
         // Ad-hoc or STA↔STA in infrastructure
-        std::cout << "Ad-hoc or STA <-> STA in infrastructure" << std::endl;
+        LOG_F(1, "Ad-hoc or STA <-> STA in infrastructure");
         result.dst_mac = utils::mac_from_bytes(addr1);  // Destination
         result.src_mac = utils::mac_from_bytes(addr2);  // Source STA
         result.bssid   = utils::mac_from_bytes(addr3);  // BSSID
-        std::cout << "[*] BSSID: " << utils::mac_to_string(result.bssid) << "\n";
+        LOG_F(1, "BSSID: %s ", utils::mac_to_string(result.bssid).c_str());
     } else if (to_ds && !from_ds) {
         // STA → AP
-        std::cout << "STA <-> AP" << std::endl;
+        LOG_F(1, "STA <-> AP");
         result.bssid   = utils::mac_from_bytes(addr1);  // BSSID (AP)
         result.src_mac = utils::mac_from_bytes(addr2);  // Source STA
         result.dst_mac = utils::mac_from_bytes(addr3);  // Destination
-        std::cout << "[*] BSSID: " << utils::mac_to_string(result.bssid) << "\n";
+        LOG_F(1, "BSSID: %s ", utils::mac_to_string(result.bssid).c_str());
     } else if (!to_ds && from_ds) {
         // AP → STA
-        std::cout << "AP <-> STA" << std::endl;
+        LOG_F(1, "AP <-> STA");
         result.dst_mac = utils::mac_from_bytes(addr1);  // Destination STA
         result.bssid   = utils::mac_from_bytes(addr2);  // BSSID (AP)
         result.src_mac = utils::mac_from_bytes(addr3);  // Source STA
-        std::cout << "[*] BSSID: " << utils::mac_to_string(result.bssid) << "\n";
+        LOG_F(1, "BSSID: %s ", utils::mac_to_string(result.bssid).c_str());
     } else if (to_ds && from_ds) {
         // WDS or mesh network — we do not support
-        std::cerr << "[-] Unsupported 4-address WDS frame\n";
+        LOG_F(ERROR, "Unsupported 4-address WDS frame");
         return result;
     }
 
     const uint8_t* llc = payload + hdr_len;
-    if (llc + 8 > packet + len || llc[0] != 0xAA || llc[1] != 0xAA || llc[2] != 0x03) {
-        std::cerr << "[-] LLC/SNAP header missing or malformed\n";
+    if (llc + 8 > packet + len || llc[0] != 0xAA || llc[1] != 0xAA || llc[2] != 0x03) 
+    {
+        LOG_F(ERROR, "LLC/SNAP header missing or malformed");
         return result;
     }
 
     uint16_t ethertype = (llc[6] << 8) | llc[7];
     if (ethertype != 0x888E) {
-        std::cerr << "[-] Not an EAPOL packet\n";
+        LOG_F(ERROR, "Not an EAPOL packet (Ethertype: 0x%04X)", ethertype);
         return result;
     }
 
     const uint8_t* eapol = llc + 8;
-    if (eapol + 4 > packet + len) {
-        std::cerr << "[-] Truncated EAPOL header\n";
+    if (eapol + 4 > packet + len) 
+    {
+        LOG_F(ERROR, "Truncated EAPOL header");
         return result;
     }
 
@@ -137,33 +141,35 @@ Eapol HandshakeExtractor::parse_packet(const EapolPacket& pkt)
     uint16_t body_len = (eapol[2] << 8) | eapol[3];
 
     if (type != 3) {  // Only parse EAPOL-Key
-        std::cerr << "[-] Not an EAPOL-Key packet (type=" << (int)type << ")\n";
+        LOG_F(ERROR, "Not an EAPOL-Key packet (type= %d)", type);
         return result;
     }
 
     size_t eapol_total_len = 4 + body_len;
     const uint8_t* eapol_start = eapol;
 
-    if (eapol_start + eapol_total_len > packet + len) {
-        std::cerr << "[-] EAPOL payload length exceeds packet size\n";
+    if (eapol_start + eapol_total_len > packet + len) 
+    {
+        LOG_F(ERROR, "EAPOL payload length exceeds packet size");
         return result;
     }
 
     result.eapol_payload.assign(eapol_start, eapol_start + eapol_total_len);
 
     result.eapol_payload_zeroed = result.eapol_payload;
-    if (result.eapol_payload_zeroed.size() >= 97) {
+    if (result.eapol_payload_zeroed.size() >= 97) {  // remove magic number
         std::fill(result.eapol_payload_zeroed.begin() + 81,
                 result.eapol_payload_zeroed.begin() + 97, 0x00);
     } else {
-        std::cerr << "[-] EAPOL payload too short to zero MIC\n";
+        LOG_F(ERROR, "EAPOL payload too short to zero MIC");
     }
 
     const uint8_t* eapol_key = eapol + 4;
     size_t remaining = packet + len - eapol_key;
 
-    if (remaining < 96) {
-        std::cerr << "[-] Truncated EAPOL-Key body\n";
+    if (remaining < 96) 
+    {
+        LOG_F(ERROR, "Truncated EAPOL-Key body");
         return result;
     }
 
@@ -184,30 +190,32 @@ Eapol HandshakeExtractor::parse_packet(const EapolPacket& pkt)
     if (key_data_start + desc.key_data_length <= packet + len) {
         desc.key_data.assign(key_data_start, key_data_start + desc.key_data_length);
     } else {
-        std::cerr << "[-] Invalid Key Data length: exceeds packet bounds ("
-                  << desc.key_data_length << " vs " << (packet + len - key_data_start) << ")\n";
+        LOG_F(ERROR, "[-] Invalid Key Data length: exceeds packet bounds (%zu vs %zu)",
+       static_cast<size_t>(desc.key_data_length),
+       static_cast<size_t>(packet + len - key_data_start));
         desc.key_data.clear();
     }
 
     result.has_mic = ((desc.key_info >> 8) & 0x01);
     result.is_from_ap = (payload[1] & 0x01) == 0;
 
-    std::cout << "[*] Descriptor Type: " << std::dec << (int)desc.descriptor_type << "\n";
-    std::cout << "[*] Key Info: 0x" << std::hex << desc.key_info << "\n";
-    std::cout << "[*] Key Length: " << std::dec << desc.key_length << "\n";
-    std::cout << "[*] Key Data Length: " << desc.key_data_length << "\n";
-    std::cout << "[*] Has MIC: " << std::boolalpha << result.has_mic << "\n";
-    std::cout << "[*] Is From AP: " << result.is_from_ap << "\n";
-    std::cout << "[*] Replay Counter: "
-          << utils::to_hex(desc.replay_counter.data(), desc.replay_counter.size()) << "\n";
-    std::cout << "[*] Nonce: "
-          << utils::to_hex(desc.nonce.data(), desc.nonce.size()) << "\n";
-    std::cout << "[*] EAPOL Payload (len=" << result.eapol_payload.size() << "): "
-          << utils::to_hex(result.eapol_payload.data(), std::min<size_t>(result.eapol_payload.size(), 64)) << "...\n";
-    std::cout << "[*] EAPOL (zeroed MIC): "
-          << utils::to_hex(result.eapol_payload_zeroed.data(),
-                           std::min<size_t>(result.eapol_payload_zeroed.size(), 64))
-          << "...\n";
+    LOG_F(INFO, "[*] Descriptor Type: %d", static_cast<int>(desc.descriptor_type));
+    LOG_F(INFO, "[*] Key Info: 0x%04x", desc.key_info);
+    LOG_F(INFO, "[*] Key Length: %u", desc.key_length);
+    LOG_F(INFO, "[*] Key Data Length: %u", desc.key_data_length);
+    LOG_F(INFO, "[*] Has MIC: %s", result.has_mic ? "true" : "false");
+    LOG_F(INFO, "[*] Is From AP: %s", result.is_from_ap ? "true" : "false");
+    LOG_F(INFO, "[*] Replay Counter: %s",
+        utils::to_hex(desc.replay_counter.data(), desc.replay_counter.size()).c_str());
+    LOG_F(INFO, "[*] Nonce: %s",
+        utils::to_hex(desc.nonce.data(), desc.nonce.size()).c_str());
+    LOG_F(INFO, "[*] EAPOL Payload (len=%zu): %s...",
+        result.eapol_payload.size(),
+        utils::to_hex(result.eapol_payload.data(),
+                        std::min<size_t>(result.eapol_payload.size(), 64)).c_str());
+    LOG_F(INFO, "[*] EAPOL (zeroed MIC): %s...",
+        utils::to_hex(result.eapol_payload_zeroed.data(),
+                        std::min<size_t>(result.eapol_payload_zeroed.size(), 64)).c_str());
 
     return result;
 }
@@ -220,13 +228,15 @@ std::optional<HandshakeData> HandshakeExtractor::prepare_handshake_info() {
     };
 
     auto print_handshake = [](const HandshakeData& hs) {
-        std::cout << "        [+] Extracted handshake fields:\n";
-        std::cout << "            - AP MAC:      " << utils::to_hex(hs.ap_mac.data(), 6) << "\n";
-        std::cout << "            - Client MAC:  " << utils::to_hex(hs.client_mac.data(), 6) << "\n";
-        std::cout << "            - ANonce:      " << utils::to_hex(hs.anonce.data(), 32) << "\n";
-        std::cout << "            - SNonce:      " << utils::to_hex(hs.snonce.data(), 32) << "\n";
-        std::cout << "            - MIC:         " << utils::to_hex(hs.mic.data(), 16) << "\n";
-        std::cout << "            - EAPOL frame: " << utils::to_hex(hs.eapol_frame.data(), std::min<size_t>(hs.eapol_frame.size(), 64)) << "...\n";
+        LOG_F(2, "        [+] Extracted handshake fields:");
+        LOG_F(2, "            - AP MAC:      %s", utils::to_hex(hs.ap_mac.data(), 6).c_str());
+        LOG_F(2, "            - Client MAC:  %s", utils::to_hex(hs.client_mac.data(), 6).c_str());
+        LOG_F(2, "            - ANonce:      %s", utils::to_hex(hs.anonce.data(), 32).c_str());
+        LOG_F(2, "            - SNonce:      %s", utils::to_hex(hs.snonce.data(), 32).c_str());
+        LOG_F(2, "            - MIC:         %s", utils::to_hex(hs.mic.data(), 16).c_str());
+        LOG_F(2, "            - EAPOL frame: %s...",
+            utils::to_hex(hs.eapol_frame.data(),
+                            std::min<size_t>(hs.eapol_frame.size(), 64)).c_str());
     };
 
     std::optional<HandshakeData> best_handshake;
@@ -256,11 +266,12 @@ std::optional<HandshakeData> HandshakeExtractor::prepare_handshake_info() {
 
     // Optional: print stats
     for (const auto& [rc, bin] : bins) {
-        std::cout << "[*] RC " << rc << ": "
-                  << bin.m1s.size() << " M1, "
-                  << bin.m2s.size() << " M2, "
-                  << bin.m3s.size() << " M3, "
-                  << bin.m4s.size() << " M4\n";
+        LOG_F(2, "[*] RC %zu: %zu M1, %zu M2, %zu M3, %zu M4",
+        rc,
+        bin.m1s.size(),
+        bin.m2s.size(),
+        bin.m3s.size(),
+        bin.m4s.size());
 
         // Preferred: M2 + M3
         for (const auto& m2 : bin.m2s) {
@@ -276,7 +287,7 @@ std::optional<HandshakeData> HandshakeExtractor::prepare_handshake_info() {
                 hs.eapol_frame = m2.eapol_payload_zeroed;
                 hs.message_pair = 0x02;
 
-                std::cout << "        [+] Valid M2 + M3 handshake found\n";
+                LOG_F(INFO, "Valid M2 + M3 handshake found");
                 return hs;
             }
         }
@@ -295,19 +306,19 @@ std::optional<HandshakeData> HandshakeExtractor::prepare_handshake_info() {
                 hs.eapol_frame = m2.eapol_payload_zeroed;
                 hs.message_pair = 0x00;
 
-                std::cout << "        [+] Valid M1 + M2 handshake found\n";
+                LOG_F(INFO, "Valid M1 + M2 handshake found");
                 return hs;
             }
         }
     }
 
     if (best_handshake.has_value()) {
-        std::cout << "        [+] Handshake info prepared (message_pair = 0x"
-                  << std::hex << static_cast<int>(best_handshake->message_pair) << ")\n";
+        LOG_F(INFO, "Handshake info prepared (message_pair = 0x%02X)",
+            static_cast<int>(best_handshake->message_pair));
 
         print_handshake(*best_handshake);
     } else {
-        std::cout << "[-] No valid handshake info found.\n";
+        LOG_F(ERROR, "No valid handshake info found.");
     }
 
 

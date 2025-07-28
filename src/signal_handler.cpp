@@ -1,6 +1,7 @@
 #include "signal_handler.hpp"
 #include <csignal>
 #include <iostream>
+#include <loguru.hpp>
 
 namespace whiff {
 
@@ -15,8 +16,10 @@ void SignalHandler::setup() {
 }
 
 void SignalHandler::handle_signal(int sig) {
-    if (sig == SIGINT) {
-        std::cout << "\n[!] Ctrl+C detected. Stopping capture...\n";
+    if (sig == SIGINT) 
+    {
+        LOG_F(INFO,"Ctrl+C detected. Stopping capture...");
+        
         if (callback) callback();
     }
 }

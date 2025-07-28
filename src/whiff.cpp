@@ -1,7 +1,9 @@
 #include <whiff.hpp>
 
 #include <thread>
+#include <chrono>
 #include <signal_handler.hpp>
+#include <loguru.hpp>
 
 namespace whiff {
 
@@ -12,7 +14,7 @@ std::unique_ptr<Whiff> Whiff::from_args(int argc, char** argv) {
             "  ./whiff --export <interface> <output.pcap>\n");
     }
 
-    auto app = std::make_unique<Whiff>();
+    auto app = std::make_unique<Whiff>();  // TODO: make order of flags independent (use map)
     std::string flag = argv[1];
 
     if (flag == "--capture") {
@@ -49,9 +51,10 @@ void Whiff::run() {
             std::thread monitor([&]() {
                 std::unique_lock<std::mutex> lock(_mutex);
                 _cv.wait(lock, [&]() { 
-                    std::cout << "target_bssid gets value : " << _target_bssid.has_value() << std::endl;
+                    LOG_F(INFO, "target_bssid has value: %s", _target_bssid.has_value() ? "true" : "false");
                     return _target_bssid.has_value() || _abort.load(); 
                 });
+                LOG_F(1, "calling pcap_breakloop");
                 _pkt_handler->stop();
             });
 
@@ -74,22 +77,24 @@ void Whiff::run() {
             if (monitor.joinable())
                 monitor.join();
 
+            std::this_thread::sleep_for(std::chrono::seconds(2)); 
+
             _pkt_handler.reset();  
 
             if (_target_bssid) {
-                std::cout << "[*] Starting EAPOL capture for BSSID: " << *_target_bssid << "\n";
+                LOG_F(INFO, "[*] Starting EAPOL capture for BSSID: %s", _target_bssid->c_str());
 
                 _eapol_filter = std::make_unique<EapolFilter>(*_target_bssid);
                 _pkt_handler = std::make_unique<PacketHandler>(_eapol_filter.get());
 
                 _pkt_handler->capture(_interface.c_str(), _outfile.c_str());
 
-                std::cout << "[*] Finished EAPOL capture.\n";
+                LOG_F(INFO, "[*] Exporting EAPOL packets to %s", _outfile.c_str());
             } else {
-                std::cerr << "[-] No target SSID detected. EAPOL capture skipped.\n";
+                LOG_F(WARNING, "No target SSID detected. EAPOL capture skipped.");
             }
 
-            std::cout << "[*] Finished capture.\n";
+            LOG_F(INFO, "[*] Finished capture.\n");
             break;
         }
 
@@ -97,10 +102,10 @@ void Whiff::run() {
             HandshakeExtractor extractor("/home/xichuz/workspace/whiff/eapol.pcap"); // TODO : set this using cli
 
             if (extractor.extract_handshake()) {
-                std::cout << "[*] EAPOL handshake(s) found: "
-                          << extractor.get_eapol_packets().size() << "\n";
+                LOG_F(INFO, "[*] EAPOL handshake(s) found: %zu",
+                          extractor.get_eapol_packets().size());
             } else {
-                std::cout << "[-] No EAPOL packets found.\n";
+                LOG_F(ERROR, "No EAPOL packets found.");
                 return;
             }
 
@@ -110,12 +115,12 @@ void Whiff::run() {
 
             auto data = extractor.prepare_handshake_info();
             if (!data.has_value()) {
-                std::cout << "[-] Could not prepare handshake data.\n";
+                LOG_F(ERROR, "Could not prepare handshake data.");
                 return;
             }
 
-            Hc22000Exporter::export_to_file(data.value(), /*ssid=*/"", _outfile);
-            std::cout << "[+] Exported handshake to " << _outfile << "\n";
+            Hc22000Exporter::export_to_file(data.value(), "realme 8", _outfile); // TODO: set target ssid using cli
+            LOG_F(INFO, "[*] Exported handshake to %s", _outfile.c_str());
             break;
         }
     }

@@ -1,7 +1,12 @@
-build/*
+build
+.venv
+.vscode
 notes.txt
-packets/*
+packets
 out
 *.hc22000
 test.py
 wordlist.txt
+CMakeUserPresets.json
+log
+*.pcap

@@ -63,7 +63,7 @@ void Whiff::run() {
 
                 {
                     std::lock_guard<std::mutex> lock(_mutex);
-                    _abort.store(true);
+                    _abort.store(true); // _target_bssid might not have value yet
                     _cv.notify_one();
                 }
 
@@ -72,12 +72,17 @@ void Whiff::run() {
             });
             SignalHandler::setup();
 
-            _pkt_handler->capture(_interface.c_str(), _outfile.c_str());
+            if (!_pkt_handler->capture(_interface.c_str(), _outfile.c_str())) {
+                LOG_F(ERROR, "Failed to start packet capture. Exiting.");
+                _abort.store(true);
+                _cv.notify_one();
+                if (monitor.joinable())
+                    monitor.join();
+                return;
+            }
 
             if (monitor.joinable())
                 monitor.join();
-
-            std::this_thread::sleep_for(std::chrono::seconds(2)); 
 
             _pkt_handler.reset();  
 

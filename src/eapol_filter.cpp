@@ -13,7 +13,7 @@ EapolFilter::EapolFilter(const std::string& bssid) {
     }
 }
 
-bool EapolFilter::match(const u_char* packet, uint32_t len) const  // TODO: check BSSID (derive from SSID -> need to get beacon, implement beacon filter first)
+bool EapolFilter::match(const u_char* packet, uint32_t len) const 
 {
     if (len < 36) return false;
 

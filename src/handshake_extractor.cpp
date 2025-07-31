@@ -199,21 +199,21 @@ Eapol HandshakeExtractor::parse_packet(const EapolPacket& pkt)
     result.has_mic = ((desc.key_info >> 8) & 0x01);
     result.is_from_ap = (payload[1] & 0x01) == 0;
 
-    LOG_F(INFO, "[*] Descriptor Type: %d", static_cast<int>(desc.descriptor_type));
-    LOG_F(INFO, "[*] Key Info: 0x%04x", desc.key_info);
-    LOG_F(INFO, "[*] Key Length: %u", desc.key_length);
-    LOG_F(INFO, "[*] Key Data Length: %u", desc.key_data_length);
-    LOG_F(INFO, "[*] Has MIC: %s", result.has_mic ? "true" : "false");
-    LOG_F(INFO, "[*] Is From AP: %s", result.is_from_ap ? "true" : "false");
-    LOG_F(INFO, "[*] Replay Counter: %s",
+    LOG_F(1, "[*] Descriptor Type: %d", static_cast<int>(desc.descriptor_type));
+    LOG_F(1, "[*] Key Info: 0x%04x", desc.key_info);
+    LOG_F(1, "[*] Key Length: %u", desc.key_length);
+    LOG_F(1, "[*] Key Data Length: %u", desc.key_data_length);
+    LOG_F(1, "[*] Has MIC: %s", result.has_mic ? "true" : "false");
+    LOG_F(1, "[*] Is From AP: %s", result.is_from_ap ? "true" : "false");
+    LOG_F(1, "[*] Replay Counter: %s",
         utils::to_hex(desc.replay_counter.data(), desc.replay_counter.size()).c_str());
-    LOG_F(INFO, "[*] Nonce: %s",
+    LOG_F(1, "[*] Nonce: %s",
         utils::to_hex(desc.nonce.data(), desc.nonce.size()).c_str());
-    LOG_F(INFO, "[*] EAPOL Payload (len=%zu): %s...",
+    LOG_F(1, "[*] EAPOL Payload (len=%zu): %s...",
         result.eapol_payload.size(),
         utils::to_hex(result.eapol_payload.data(),
                         std::min<size_t>(result.eapol_payload.size(), 64)).c_str());
-    LOG_F(INFO, "[*] EAPOL (zeroed MIC): %s...",
+    LOG_F(1, "[*] EAPOL (zeroed MIC): %s...",
         utils::to_hex(result.eapol_payload_zeroed.data(),
                         std::min<size_t>(result.eapol_payload_zeroed.size(), 64)).c_str());
 

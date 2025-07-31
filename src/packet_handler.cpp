@@ -34,14 +34,14 @@ void PacketHandler::pcap_callback(u_char* user, const struct pcap_pkthdr* header
     }
 }
 
-void PacketHandler::capture(const std::string& iface, const std::string& output_file)
+bool PacketHandler::capture(const std::string& iface, const std::string& output_file)
 {
     char errbuf[PCAP_ERRBUF_SIZE];
 
     _handle = pcap_open_live(iface.c_str(), BUFSIZ, 1, 1000, errbuf);
     if (!_handle) {
         LOG_F(ERROR, "pcap_open_live failed: %s", errbuf);
-        return;
+        return false;
     }
 
     _dumper = pcap_dump_open(_handle, output_file.c_str());
@@ -50,7 +50,7 @@ void PacketHandler::capture(const std::string& iface, const std::string& output_
         LOG_F(ERROR, "pcap_dump_open failed: %s", pcap_geterr(_handle));
         pcap_close(_handle);
         _handle = nullptr;
-        return;
+        return false;
     }
 
     LOG_F(INFO, "Starting packet capture on interface: %s, saving to %s", iface.c_str(), output_file.c_str());
@@ -67,6 +67,8 @@ void PacketHandler::capture(const std::string& iface, const std::string& output_
         pcap_close(_handle);
         _handle = nullptr;
     }
+
+    return true;
 }
 
 void PacketHandler::set_filter(PacketFilter* new_filter) { // TODO: maybe remove this

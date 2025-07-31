@@ -18,7 +18,7 @@ public:
 PacketHandler(PacketFilter* filter);
 ~PacketHandler();
 
-void capture(const std::string& iface, const std::string& output_file);
+bool capture(const std::string& iface, const std::string& output_file);
 void stop();
 void set_filter(PacketFilter* new_filter);
 
@@ -27,7 +27,6 @@ struct CaptureContext {
     pcap_dumper_t* dumper;
     PacketFilter*  filter;
 };
-
 
 pcap_t* _handle = nullptr;
 pcap_dumper_t* _dumper = nullptr;

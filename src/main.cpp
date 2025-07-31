@@ -13,7 +13,7 @@ int main(int argc, char* argv[])
     loguru::init(argc, argv, options);
     loguru::g_stderr_verbosity = loguru::Verbosity_INFO;
 
-    loguru::add_file("log/whiff.log", loguru::Append, loguru::Verbosity_MAX);
+    loguru::add_file("log/whiff.log", loguru::Append, loguru::Verbosity_MAX);  // TODO: set to overwrite instead of append
 
     LOG_F(INFO, "Launching Whiff");
 

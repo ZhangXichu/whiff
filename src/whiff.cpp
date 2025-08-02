@@ -8,30 +8,82 @@
 namespace whiff {
 
 std::unique_ptr<Whiff> Whiff::from_args(int argc, char** argv) {
-    if (argc < 2) {
-        throw std::runtime_error("Usage:\n"
-            "  ./whiff --capture <interface> <output.pcap>\n"
-            "  ./whiff --export <interface> <output.pcap>\n");
+    if (argc < 4) {
+        throw std::runtime_error(
+            "Usage:\n"
+            "  ./whiff --capture <interface> --output <file.pcap> [--ssid <name>]\n"
+            "  ./whiff --export <interface> --input <file.pcap> --output <file.22000> [--ssid <name>]\n"
+        );
     }
 
-    auto app = std::make_unique<Whiff>();  // TODO: make order of flags independent (use map)
+    std::string mode_flag;
+    std::string interface;
+    std::unordered_map<std::string, std::string> options;
+
+    auto app = std::make_unique<Whiff>();
     std::string flag = argv[1];
 
-    if (flag == "--capture") {
-        if (argc < 4) throw std::runtime_error("Missing args for --capture");
-        app->_mode = Mode::Capture;
-        app->_interface = argv[2];
-        app->_outfile = argv[3];
+    for (int i = 1; i < argc; ++i) {
+        std::string arg = argv[i];
 
-    } 
-    else if (flag == "--export") {
-        if (argc < 4) throw std::runtime_error("Missing args for --export");
-        app->_mode = Mode::Export;
-        app->_interface = argv[2];
-        app->_outfile = argv[3];
-    } else {
-        throw std::runtime_error("Unknown mode flag: " + flag);
+        if (arg == "--capture" || arg == "--export") {
+            if (!mode_flag.empty()) {
+                throw std::runtime_error("Specify only one mode: --capture or --export");
+            }
+            mode_flag = arg;
+
+            // Interface must follow
+            if (i + 1 >= argc) {
+                throw std::runtime_error("Missing interface after " + arg);
+            }
+            interface = argv[++i];
+        } else if (arg == "--output" || arg == "--input" || arg == "--ssid") {
+            if (i + 1 >= argc) {
+                throw std::runtime_error("Missing value after " + arg);
+            }
+            options[arg] = argv[++i];
+        } else {
+            throw std::runtime_error("Unknown argument: " + arg);
+        }
     }
+
+    if (mode_flag.empty()) {
+        throw std::runtime_error("You must specify one mode: --capture or --export");
+    }
+
+    app->_interface = interface;
+
+    if (mode_flag == "--capture") {
+        app->_mode = Mode::Capture;
+
+        if (options.find("--output") == options.end()) {
+            throw std::runtime_error("--output <file.pcap> is required in capture mode");
+        }
+
+        app->_outfile = options["--output"];
+
+    } else if (mode_flag == "--export") {
+        app->_mode = Mode::Export;
+
+        if (options.find("--input") == options.end()) {
+            throw std::runtime_error("--input <file.pcap> is required in export mode");
+        }
+        if (options.find("--output") == options.end()) {
+            throw std::runtime_error("--output <file.22000> is required in export mode");
+        }
+
+        app->_infile = options["--input"];
+        app->_outfile = options["--output"];
+
+    } else {
+        throw std::runtime_error("Unknown mode: " + mode_flag);
+    }
+
+    auto ssid_it = options.find("--ssid");
+    if (ssid_it == options.end()) {
+        throw std::runtime_error("--ssid <network_name> is required (hidden networks are not supported)");
+    }
+    app->_target_ssid = ssid_it->second;
 
     return app;
 }
@@ -41,11 +93,9 @@ void Whiff::run() {
 
     switch (_mode) {
         case Mode::Capture: {
-
-            std::string target_ssid = "realme 8"; // TODO: make this part of command line arguement
             _target_bssid = std::nullopt;
             
-            _beacon_filter = std::make_unique<BeaconFilter>(_registry, _mutex, _cv, target_ssid, _target_bssid);
+            _beacon_filter = std::make_unique<BeaconFilter>(_registry, _mutex, _cv, _target_ssid, _target_bssid);
             _pkt_handler  = std::make_unique<PacketHandler>(_beacon_filter.get());
 
             std::thread monitor([&]() {
@@ -104,7 +154,7 @@ void Whiff::run() {
         }
 
         case Mode::Export: {
-            HandshakeExtractor extractor("/home/xichuz/workspace/whiff/eapol.pcap"); // TODO : set this using cli
+            HandshakeExtractor extractor(_infile);
 
             if (extractor.extract_handshake()) {
                 LOG_F(INFO, "[*] EAPOL handshake(s) found: %zu",
@@ -124,7 +174,7 @@ void Whiff::run() {
                 return;
             }
 
-            Hc22000Exporter::export_to_file(data.value(), "realme 8", _outfile); // TODO: set target ssid using cli
+            Hc22000Exporter::export_to_file(data.value(), _target_ssid, _outfile);
             LOG_F(INFO, "[*] Exported handshake to %s", _outfile.c_str());
             break;
         }

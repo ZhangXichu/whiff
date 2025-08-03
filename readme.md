@@ -26,6 +26,16 @@ A very lightweight wifi handshake analyzer and WPA2 cracker toolkit. It captures
 
 ## usage
 
+### 📡 List Access Points
+
+Scan the current wifi channel for visible access points (APs). This mode passively listens for beacon frames and logs the SSID and BSSID of each detected AP on the current channel.
+
+Press Ctrl+C when you’re done scanning to print the list.
+
+```
+sudo ./whiff --list <interface>
+```
+
 ### 📡 Capture packets 
 
 Capture packets from a specific SSID and dump EAPOL packets to output file `output.pcap`. Note that the ssid must be provided because hidden networks are not supported. Whiff firstly attempts to detect the access point (AP) and then listens for EAPOL packets to capture the 4-way handshake. 

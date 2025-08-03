@@ -6,6 +6,7 @@ set(CMAKE_CXX_STANDARD 20)
 find_package(PkgConfig REQUIRED)
 find_package(loguru REQUIRED)
 pkg_check_modules(PCAP REQUIRED libpcap)
+set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
 include_directories(${PCAP_INCLUDE_DIRS})
 link_directories(${PCAP_LIBRARY_DIRS})

@@ -13,6 +13,7 @@ class AccessPointRegistry {
 public:
 void add_entry(const BeaconInfo& info);
 std::optional<std::string> get_bssid(const std::string& ssid) const;
+const std::unordered_map<std::string, std::string>& get_entries() const;
 
 private:
 std::unordered_map<std::string, std::string> _ssid_to_bssid;

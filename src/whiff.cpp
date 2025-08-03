@@ -9,11 +9,12 @@
 namespace whiff {
 
 std::unique_ptr<Whiff> Whiff::from_args(int argc, char** argv) {
-    if (argc < 4) {
+    if (argc < 3) {
         throw std::runtime_error(
             "Usage:\n"
             "  ./whiff --capture <interface> --output <file.pcap> [--ssid <name>]\n"
             "  ./whiff --export <interface> --input <file.pcap> --output <file.22000> [--ssid <name>]\n"
+            "  ./whiff --list <interface>\n"
         );
     }
 
@@ -27,9 +28,9 @@ std::unique_ptr<Whiff> Whiff::from_args(int argc, char** argv) {
     for (int i = 1; i < argc; ++i) {
         std::string arg = argv[i];
 
-        if (arg == flags::capture_mode || arg == flags::export_mode) {
+        if (arg == flags::capture_mode || arg == flags::export_mode || arg == flags::list) {
             if (!mode_flag.empty()) {
-                throw std::runtime_error("Specify only one mode: --capture or --export");
+                throw std::runtime_error("Specify only one mode: --capture, --export or --list");
             }
             mode_flag = arg;
 
@@ -76,15 +77,22 @@ std::unique_ptr<Whiff> Whiff::from_args(int argc, char** argv) {
         app->_infile = options[flags::input];
         app->_outfile = options[flags::output];
 
+    } else if (mode_flag == flags::list) {
+        app->_mode = Mode::List;
     } else {
         throw std::runtime_error("Unknown mode: " + mode_flag);
     }
 
     auto ssid_it = options.find(flags::ssid);
     if (ssid_it == options.end()) {
-        throw std::runtime_error("--ssid <network_name> is required (hidden networks are not supported)");
+        if (app->_mode != Mode::List) {
+            throw std::runtime_error("--ssid <network_name> is required (hidden networks are not supported)");
+        } else {
+            app->_target_ssid = std::nullopt;
+        }
+    } else {
+        app->_target_ssid = ssid_it->second;
     }
-    app->_target_ssid = ssid_it->second;
 
     return app;
 }
@@ -175,8 +183,41 @@ void Whiff::run() {
                 return;
             }
 
-            Hc22000Exporter::export_to_file(data.value(), _target_ssid, _outfile);
+            Hc22000Exporter::export_to_file(data.value(), *_target_ssid, _outfile);
             LOG_F(INFO, "[*] Exported handshake to %s", _outfile.c_str());
+            break;
+        }
+
+        case Mode::List: {
+            SignalHandler::set_callback([&]() {
+                 _pkt_handler->stop();
+            });
+            SignalHandler::setup();
+
+            std::optional<std::string> empty_ssid;
+            std::optional<std::string> empty_bssid;
+
+            _beacon_filter = std::make_unique<BeaconFilter>(_registry, _mutex, _cv, empty_ssid, empty_bssid);
+            _pkt_handler  = std::make_unique<PacketHandler>(_beacon_filter.get());
+
+            LOG_F(INFO, "[*] Listening for beacons on interface '%s'...", _interface.c_str());
+            LOG_F(INFO, "[*] Press Ctrl+C to stop...");
+
+            if (!_pkt_handler->capture(_interface.c_str(), "")) 
+            {
+                LOG_F(ERROR, "Failed to start packet capture. Exiting.");
+                return;
+            }
+
+            LOG_F(INFO, "[*] Access Points:");
+            const auto& entries = _registry.get_entries();
+            if (entries.empty()) {
+                LOG_F(INFO, "No access points found.");
+            } else {
+                for (const auto& [ssid, bssid] : entries) {
+                    LOG_F(INFO, "SSID: %s, BSSID: %s", ssid.c_str(), bssid.c_str());
+                }
+            }
             break;
         }
     }

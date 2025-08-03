@@ -22,9 +22,8 @@ void run();
 private:
 enum class Mode {
     Capture,
-    Dump,
-    DumpAll,
-    Export
+    Export,
+    List
 };
 std::atomic<bool> _abort = false;
 Mode _mode;
@@ -33,7 +32,7 @@ std::condition_variable _cv;
 std::string _outfile;
 std::string _infile; 
 std::string _interface;
-std::string _target_ssid;
+std::optional<std::string> _target_ssid;
 AccessPointRegistry _registry;
 std::optional<std::string> _target_bssid;
 std::unique_ptr<PacketHandler> _pkt_handler;

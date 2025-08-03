@@ -9,7 +9,7 @@ namespace whiff {
 BeaconFilter::BeaconFilter(AccessPointRegistry& registry,
                  std::mutex& mutex,
                  std::condition_variable& cv,
-                 std::string& target_ssid,
+                 std::optional<std::string>& target_ssid,
                  std::optional<std::string>& target_bssid)
         : _registry(registry)
         , _mutex(mutex)
@@ -85,7 +85,7 @@ bool BeaconFilter::match(const u_char* packet, uint32_t len) const
 
             {
                 std::lock_guard<std::mutex> lock(_mutex);
-                if (std::equal(ssid.begin(), ssid.end(), _target_ssid.begin(), _target_ssid.end())) 
+                if (std::equal(ssid.begin(), ssid.end(), (*_target_ssid).begin(), (*_target_ssid).end())) 
                 {
                     LOG_F(INFO, "[BeaconFilter] Target SSID %s found, notifying cv", ssid.c_str());
                     _target_bssid = bssid;

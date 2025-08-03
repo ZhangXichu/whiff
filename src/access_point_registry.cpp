@@ -17,4 +17,9 @@ std::optional<std::string> AccessPointRegistry::get_bssid(const std::string& ssi
     return std::nullopt;
 }
 
+const std::unordered_map<std::string, std::string>& AccessPointRegistry::get_entries() const
+{
+    return _ssid_to_bssid;
+}
+
 }

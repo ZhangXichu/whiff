@@ -16,7 +16,7 @@ public:
 BeaconFilter(AccessPointRegistry& registry,
               std::mutex& mutex,
               std::condition_variable& cv,
-              std::string& target_ssid,
+              std::optional<std::string>& target_ssid,
               std::optional<std::string>& target_bssid);
 
 bool match(const u_char* packet, uint32_t len) const override;
@@ -26,7 +26,7 @@ private:
 AccessPointRegistry& _registry;
 std::mutex& _mutex;
 std::condition_variable& _cv;
-std::string& _target_ssid;
+std::optional<std::string>& _target_ssid;
 std::optional<std::string>& _target_bssid;
 
 static inline bool is_mgmt(uint16_t fc)   { return ((fc >> 2) & 0x3) == 0; }

@@ -4,6 +4,7 @@
 #include <chrono>
 #include <signal_handler.hpp>
 #include <loguru.hpp>
+#include <constants.hpp>
 
 namespace whiff {
 
@@ -26,7 +27,7 @@ std::unique_ptr<Whiff> Whiff::from_args(int argc, char** argv) {
     for (int i = 1; i < argc; ++i) {
         std::string arg = argv[i];
 
-        if (arg == "--capture" || arg == "--export") {
+        if (arg == flags::capture_mode || arg == flags::export_mode) {
             if (!mode_flag.empty()) {
                 throw std::runtime_error("Specify only one mode: --capture or --export");
             }
@@ -37,7 +38,7 @@ std::unique_ptr<Whiff> Whiff::from_args(int argc, char** argv) {
                 throw std::runtime_error("Missing interface after " + arg);
             }
             interface = argv[++i];
-        } else if (arg == "--output" || arg == "--input" || arg == "--ssid") {
+        } else if (arg == flags::output || arg == flags::input || arg == flags::ssid) {
             if (i + 1 >= argc) {
                 throw std::runtime_error("Missing value after " + arg);
             }
@@ -53,33 +54,33 @@ std::unique_ptr<Whiff> Whiff::from_args(int argc, char** argv) {
 
     app->_interface = interface;
 
-    if (mode_flag == "--capture") {
+    if (mode_flag == flags::capture_mode) {
         app->_mode = Mode::Capture;
 
-        if (options.find("--output") == options.end()) {
+        if (options.find(flags::output) == options.end()) {
             throw std::runtime_error("--output <file.pcap> is required in capture mode");
         }
 
-        app->_outfile = options["--output"];
+        app->_outfile = options[flags::output];
 
-    } else if (mode_flag == "--export") {
+    } else if (mode_flag == flags::export_mode) {
         app->_mode = Mode::Export;
 
-        if (options.find("--input") == options.end()) {
+        if (options.find(flags::input) == options.end()) {
             throw std::runtime_error("--input <file.pcap> is required in export mode");
         }
-        if (options.find("--output") == options.end()) {
+        if (options.find(flags::output) == options.end()) {
             throw std::runtime_error("--output <file.22000> is required in export mode");
         }
 
-        app->_infile = options["--input"];
-        app->_outfile = options["--output"];
+        app->_infile = options[flags::input];
+        app->_outfile = options[flags::output];
 
     } else {
         throw std::runtime_error("Unknown mode: " + mode_flag);
     }
 
-    auto ssid_it = options.find("--ssid");
+    auto ssid_it = options.find(flags::ssid);
     if (ssid_it == options.end()) {
         throw std::runtime_error("--ssid <network_name> is required (hidden networks are not supported)");
     }

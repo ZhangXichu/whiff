@@ -8,5 +8,6 @@ out
 test.py
 wordlist.txt
 CMakeUserPresets.json
+compile_commands.json
 log
 *.pcap
